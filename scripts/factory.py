@@ -33,9 +33,9 @@ def load_payload():
     raw = os.environ.get("DISPATCH_PAYLOAD", "{}").strip()
     data = json.loads(raw) if raw and raw != "null" else {}
     return {
-        "product": data.get("product") or os.environ.get("INPUT_PRODUCT", ""),
+        "product": data.get("product") or os.environ.get("INPUT_PRODUCT", "Product"),
         "demo_url": data.get("demo_url") or os.environ.get("INPUT_DEMO_URL", ""),
-        "aff_url": data.get("aff_url") or os.environ.get("INPUT_AFF_URL", ""),
+        "aff_url": data.get("aff_url") or os.environ.get("INPUT_AFF_URL", "https://otoslinks.com"),
         "wp_post_id": str(data.get("wp_post_id") or os.environ.get("INPUT_WP_POST_ID", "")).strip(),
         "coupon": data.get("coupon") or os.environ.get("INPUT_COUPON", "VIPDEAL"),
         "intro_script": data.get("intro_script") or os.environ.get("INPUT_INTRO", ""),
@@ -128,6 +128,16 @@ def download_and_shield_demo(demo_url, product, out_mp4):
     subprocess.run(yt_cmd, check=True)
 
     safe_label = re.sub(r"[^A-Za-z0-9 .-]", "", product)
+
+    total_dur = probe_duration(raw_demo)
+    for idx, ratio in enumerate([0.2, 0.5, 0.75], start=1):
+        ts = max(1, int(total_dur * ratio))
+        subprocess.run([
+            "ffmpeg", "-y", "-ss", str(ts), "-i", raw_demo, "-frames:v", "1",
+            "-vf", f"scale=1200:-1,drawtext=fontfile={FONT_BOLD}:text='{safe_label} - OTOsLinks.com':x=20:y=20:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.6",
+            "-q:v", "80", f"screenshot_{idx}.webp"
+        ], check=True)
+
     vf = (
         "setpts=PTS/1.04,scale=1760:990:force_original_aspect_ratio=decrease,"
         "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=#0f172a,"
@@ -142,6 +152,9 @@ def fmt_chapter(seconds):
     return f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
 def upload_to_youtube(video_path, thumb_path, vtt_path, title, description, tags):
+    if not os.environ.get("YT_REFRESH_TOKEN"):
+        print("Skipping YouTube upload (no credentials set yet).")
+        return None
     creds = Credentials(
         None,
         refresh_token=os.environ["YT_REFRESH_TOKEN"],
@@ -187,7 +200,7 @@ def embed_in_wordpress(wp_post_id, video_id, product):
     site = os.environ.get("WP_SITE_URL", "").rstrip("/")
     user = os.environ.get("WP_USER", "")
     app_pw = os.environ.get("WP_APP_PASSWORD", "")
-    if not (site and user and app_pw and wp_post_id):
+    if not (site and user and app_pw and wp_post_id and video_id):
         return
     endpoint = f"{site}/wp-json/wp/v2/posts/{wp_post_id}"
     r = requests.get(endpoint, params={"context": "edit"}, auth=(user, app_pw), timeout=20)
@@ -265,8 +278,9 @@ def main():
     ]
     title = f"{prod} Review & All OTOs | Live Demo, Bundle Deal, Coupon & $24K Bonuses"
     vid_id = upload_to_youtube("final_review.mp4", "thumb.png", "intro.vtt", title, desc, tags)
-    embed_in_wordpress(p["wp_post_id"], vid_id, prod)
-    print(f"Published: https://youtu.be/{vid_id}")
+    if vid_id:
+        embed_in_wordpress(p["wp_post_id"], vid_id, prod)
+        print(f"Published: https://youtu.be/{vid_id}")
 
 if __name__ == "__main__":
     main()
