@@ -13,7 +13,8 @@ on:
         required: true
       aff_url:
         description: 'Affiliate URL'
-        required: true
+        required: false
+        default: 'https://otoslinks.com'
       wp_post_id:
         description: 'WordPress Post ID (optional)'
         required: false
@@ -41,7 +42,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install FFmpeg & Libraries
         run: |
@@ -74,3 +74,12 @@ jobs:
           INPUT_INTRO: ${{ inputs.intro_script }}
           INPUT_BRIDGE: ${{ inputs.bridge_script }}
         run: python scripts/factory.py
+
+      - name: Save Generated Video & Screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-output-pack
+          path: |
+            final_review.mp4
+            thumb.png
+            screenshot_*.webp
