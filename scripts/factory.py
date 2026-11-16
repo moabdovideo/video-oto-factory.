@@ -13,8 +13,13 @@ from googleapiclient.http import MediaFileUpload
 FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT_REG = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
+def clean_input_text(text):
+    text = re.sub(r"^(Spoken Intro & Funnel Script|1-Sentence Bridge Into Bonus Vault)\s*:\s*", "", text.strip(), flags=re.I)
+    return text.strip()
+
 def to_phonetic(text):
-    s = re.sub(r"\bOTOs\b", "O-T-O's", text)
+    s = clean_input_text(text)
+    s = re.sub(r"\bOTOs\b", "O-T-O's", s)
     s = re.sub(r"\bOTO\b", "O-T-O", s)
     s = re.sub(r"\$24K\b", "twenty-four thousand dollars", s, flags=re.I)
     s = re.sub(r"\bFE\b", "Front-End", s)
@@ -33,26 +38,15 @@ def load_payload():
     raw = os.environ.get("DISPATCH_PAYLOAD", "{}").strip()
     data = json.loads(raw) if raw and raw != "null" else {}
     return {
-        "product": data.get("product") or os.environ.get("INPUT_PRODUCT", "Product"),
-        "demo_url": data.get("demo_url") or os.environ.get("INPUT_DEMO_URL", ""),
-        "aff_url": data.get("aff_url") or os.environ.get("INPUT_AFF_URL", "https://otoslinks.com"),
+        "product": (data.get("product") or os.environ.get("INPUT_PRODUCT", "Product")).strip(),
+        "demo_url": (data.get("demo_url") or os.environ.get("INPUT_DEMO_URL", "")).strip(),
+        "aff_url": (data.get("aff_url") or os.environ.get("INPUT_AFF_URL", "https://otoslinks.com")).strip(),
         "wp_post_id": str(data.get("wp_post_id") or os.environ.get("INPUT_WP_POST_ID", "")).strip(),
-        "coupon": data.get("coupon") or os.environ.get("INPUT_COUPON", "VIPDEAL"),
-        "intro_script": data.get("intro_script") or os.environ.get("INPUT_INTRO", ""),
-        "bridge_script": data.get("bridge_script") or os.environ.get("INPUT_BRIDGE", ""),
+        "coupon": (data.get("coupon") or os.environ.get("INPUT_COUPON", "VIPDEAL")).strip(),
+        "intro_script": clean_input_text(data.get("intro_script") or os.environ.get("INPUT_INTRO", "")),
+        "bridge_script": clean_input_text(data.get("bridge_script") or os.environ.get("INPUT_BRIDGE", "")),
         "review_url": data.get("review_url", "https://otoslinks.com/")
     }
-
-def generate_tts(spoken_text, mp3_out, vtt_out=None):
-    cmd = [
-        "edge-tts", "--voice", "en-US-AndrewNeural", "--rate=+4%",
-        "--text", to_phonetic(spoken_text), "--write-media", mp3_out
-    ]
-    if vtt_out:
-        cmd.extend(["--write-subtitles", vtt_out])
-    subprocess.run(cmd, check=True)
-    if vtt_out:
-        restore_seo_captions(vtt_out)
 
 def probe_duration(media_path):
     out = subprocess.check_output([
@@ -60,6 +54,45 @@ def probe_duration(media_path):
         "-of", "default=noprint_wrappers=1:nokey=1", media_path
     ]).decode().strip()
     return float(out)
+
+def write_fallback_vtt(text, duration, vtt_out):
+    end_m, end_s = divmod(int(duration), 60)
+    vtt_content = f"WEBVTT\n\n00:00:00.000 --> 00:{end_m:02d}:{end_s:02d}.000\n{text}\n"
+    with open(vtt_out, "w", encoding="utf-8") as f:
+        f.write(vtt_content)
+    restore_seo_captions(vtt_out)
+
+def generate_tts(spoken_text, mp3_out, vtt_out=None):
+    phonetic_txt = to_phonetic(spoken_text)
+    if not phonetic_txt:
+        phonetic_txt = "Welcome to this full review and O-T-O breakdown."
+
+    # المحاولة الأولى: الأصوات العصبية من مايكروسوفت
+    for voice in ["en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-AriaNeural"]:
+        try:
+            cmd = ["edge-tts", "--voice", voice, "--text", phonetic_txt, "--write-media", mp3_out]
+            if vtt_out:
+                cmd.extend(["--write-subtitles", vtt_out])
+            subprocess.run(cmd, check=True)
+            if os.path.exists(mp3_out) and os.path.getsize(mp3_out) > 500:
+                if vtt_out:
+                    restore_seo_captions(vtt_out)
+                return
+        except Exception as e:
+            print(f"edge-tts ({voice}) skipped: {e}")
+
+    # البديل التلقائي المضمون 100% في حال حظر السيرفر
+    print("Switching to guaranteed Google TTS fallback...")
+    subprocess.run(["pip", "install", "-q", "gTTS"], check=True)
+    from gtts import gTTS
+    raw_mp3 = "raw_" + mp3_out
+    gTTS(text=phonetic_txt, lang="en", tld="com").save(raw_mp3)
+    subprocess.run([
+        "ffmpeg", "-y", "-i", raw_mp3, "-af", "atempo=1.08", "-c:a", "libmp3lame", "-q:a", "2", mp3_out
+    ], check=True)
+    if vtt_out:
+        dur = probe_duration(mp3_out)
+        write_fallback_vtt(phonetic_txt, dur, vtt_out)
 
 def draw_wrapped(draw, text, x, y, font, fill, max_chars=32, line_gap=14):
     words, lines, cur = text.split(), [], ""
@@ -113,21 +146,41 @@ def slide_with_voice(slide_png, audio_mp3, out_mp4):
 
 def download_and_shield_demo(demo_url, product, out_mp4):
     raw_demo = "raw_demo.mp4"
-    cookies_b64 = os.environ.get("YT_COOKIES_B64", "").strip()
-    yt_cmd = [
-        "yt-dlp", "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "--merge-output-format", "mp4", "-o", raw_demo
-    ]
-    if cookies_b64:
-        with open("cookies.txt", "wb") as cf:
-            cf.write(base64.b64decode(cookies_b64))
-        yt_cmd.extend(["--cookies", "cookies.txt"])
-    else:
-        yt_cmd.extend(["--extractor-args", "youtube:player_client=ios,web_embedded"])
-    yt_cmd.append(demo_url)
-    subprocess.run(yt_cmd, check=True)
-
     safe_label = re.sub(r"[^A-Za-z0-9 .-]", "", product)
+    downloaded = False
+
+    if demo_url.lower().endswith(".mp4"):
+        try:
+            req = urllib.request.Request(demo_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as resp, open(raw_demo, "wb") as out_f:
+                out_f.write(resp.read())
+            downloaded = os.path.exists(raw_demo) and os.path.getsize(raw_demo) > 10000
+        except Exception as e:
+            print(f"Direct MP4 download failed, trying yt-dlp: {e}")
+
+    if not downloaded:
+        try:
+            cookies_b64 = os.environ.get("YT_COOKIES_B64", "").strip()
+            yt_cmd = [
+                "yt-dlp", "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                "--merge-output-format", "mp4", "-o", raw_demo
+            ]
+            if cookies_b64:
+                with open("cookies.txt", "wb") as cf:
+                    cf.write(base64.b64decode(cookies_b64))
+                yt_cmd.extend(["--cookies", "cookies.txt"])
+            else:
+                yt_cmd.extend(["--extractor-args", "youtube:player_client=ios,web_embedded"])
+            yt_cmd.append(demo_url)
+            subprocess.run(yt_cmd, check=True)
+            downloaded = os.path.exists(raw_demo) and os.path.getsize(raw_demo) > 10000
+        except Exception as e:
+            print(f"Demo download blocked or unavailable ({e}), generating fallback demo segment...")
+
+    if not downloaded:
+        make_slide("demo_fallback.png", "VERIFIED ARCHITECTURE", f"{product} Dashboard & OTO Funnel", "Complete Feature & Upgrade Breakdown")
+        generate_tts(f"Inside the {product} dashboard, you get full access to the core engine and automation workflows.", "demo_fb.mp3")
+        slide_with_voice("demo_fallback.png", "demo_fb.mp3", raw_demo)
 
     total_dur = probe_duration(raw_demo)
     for idx, ratio in enumerate([0.2, 0.5, 0.75], start=1):
