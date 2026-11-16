@@ -5,7 +5,7 @@ import re
 import subprocess
 import urllib.request
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -67,7 +67,6 @@ def generate_tts(spoken_text, mp3_out, vtt_out=None):
     if not phonetic_txt:
         phonetic_txt = "Welcome to this full review and O-T-O breakdown."
 
-    # المحاولة الأولى: الأصوات العصبية من مايكروسوفت
     for voice in ["en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-AriaNeural"]:
         try:
             cmd = ["edge-tts", "--voice", voice, "--text", phonetic_txt, "--write-media", mp3_out]
@@ -81,7 +80,6 @@ def generate_tts(spoken_text, mp3_out, vtt_out=None):
         except Exception as e:
             print(f"edge-tts ({voice}) skipped: {e}")
 
-    # البديل التلقائي المضمون 100% في حال حظر السيرفر
     print("Switching to guaranteed Google TTS fallback...")
     subprocess.run(["pip", "install", "-q", "gTTS"], check=True)
     from gtts import gTTS
@@ -93,6 +91,16 @@ def generate_tts(spoken_text, mp3_out, vtt_out=None):
     if vtt_out:
         dur = probe_duration(mp3_out)
         write_fallback_vtt(phonetic_txt, dur, vtt_out)
+
+def fit_font(draw, text, font_path, max_width, start_size, min_size=32):
+    size = start_size
+    while size >= min_size:
+        font = ImageFont.truetype(font_path, size)
+        bbox = draw.textbbox((0, 0), text, font=font, stroke_width=4)
+        if (bbox[2] - bbox[0]) <= max_width:
+            return font
+        size -= 4
+    return ImageFont.truetype(font_path, min_size)
 
 def draw_wrapped(draw, text, x, y, font, fill, max_chars=32, line_gap=14):
     words, lines, cur = text.split(), [], ""
@@ -106,21 +114,130 @@ def draw_wrapped(draw, text, x, y, font, fill, max_chars=32, line_gap=14):
         lines.append(cur)
     cy = y
     for ln in lines:
-        draw.text((x, cy), ln, font=font, fill=fill)
+        draw.text((x, cy), ln, font=font, fill=fill, stroke_width=3, stroke_fill="#000000")
         bbox = draw.textbbox((x, cy), ln, font=font)
         cy += (bbox[3] - bbox[1]) + line_gap
 
 def make_slide(out_png, badge, title, subtitle, size=(1920, 1080)):
-    img = Image.new("RGB", size, "#0f172a")
+    img = Image.new("RGB", size, "#090d16")
+    if os.path.exists("screenshot_2.webp"):
+        try:
+            bg = Image.open("screenshot_2.webp").convert("RGB").resize(size)
+            bg = bg.filter(ImageFilter.GaussianBlur(28))
+            bg = ImageEnhance.Brightness(bg).enhance(0.22)
+            img.paste(bg, (0, 0))
+        except Exception:
+            pass
+
     draw = ImageDraw.Draw(img)
-    f_badge = ImageFont.truetype(FONT_BOLD, 30 if size[0] == 1920 else 24)
-    f_title = ImageFont.truetype(FONT_BOLD, 74 if size[0] == 1920 else 56)
-    f_sub = ImageFont.truetype(FONT_REG, 40 if size[0] == 1920 else 30)
-    draw.rectangle([80, 70, 640, 136], fill="#10b981")
-    draw.text((105, 86), badge, font=f_badge, fill="#052e16")
-    draw_wrapped(draw, title, 80, 190, f_title, "#ffffff", max_chars=26 if size[0] == 1280 else 32)
-    draw_wrapped(draw, subtitle, 80, size[1] - 210, f_sub, "#fbbf24", max_chars=44)
+    f_badge = ImageFont.truetype(FONT_BOLD, 32)
+    f_title = ImageFont.truetype(FONT_BOLD, 80)
+    f_sub = ImageFont.truetype(FONT_BOLD, 44)
+
+    draw.rounded_rectangle([80, 70, 680, 145], radius=16, fill="#10b981", outline="#ffffff", width=2)
+    draw.text((110, 88), badge, font=f_badge, fill="#052e16")
+    draw_wrapped(draw, title, 80, 200, f_title, "#ffffff", max_chars=30)
+    draw.rounded_rectangle([80, size[1] - 210, size[0] - 80, size[1] - 100], radius=18, fill="#1e293b", outline="#fbbf24", width=3)
+    draw.text((115, size[1] - 180), subtitle, font=f_sub, fill="#fbbf24", stroke_width=2, stroke_fill="#000000")
     img.save(out_png)
+
+def make_killer_thumbnail(out_png, product, coupon, preview_img="screenshot_2.webp"):
+    W, H = 1280, 720
+    base = Image.new("RGB", (W, H), "#090d16")
+
+    # 1. خلفية سينمائية مموهة من الديمو مع إضاءة متدرجة
+    if os.path.exists(preview_img):
+        try:
+            bg = Image.open(preview_img).convert("RGB").resize((W, H))
+            bg = bg.filter(ImageFilter.GaussianBlur(22))
+            bg = ImageEnhance.Brightness(bg).enhance(0.25)
+            base.paste(bg, (0, 0))
+        except Exception:
+            pass
+
+    draw = ImageDraw.Draw(base)
+
+    # إضاءة خلفية خفيفة لفصل النصوص عن المعاينة
+    draw.rectangle([0, 0, 660, H], fill="#090d16")
+    if os.path.exists(preview_img):
+        try:
+            bg_left = Image.open(preview_img).convert("RGB").resize((W, H)).filter(ImageFilter.GaussianBlur(35))
+            bg_left = ImageEnhance.Brightness(bg_left).enhance(0.18)
+            base.paste(bg_left, (0, 0))
+            draw = ImageDraw.Draw(base)
+        except Exception:
+            pass
+
+    # إطار خارجي مضيء للصورة المصغرة بالكامل
+    draw.rectangle([6, 6, W - 7, H - 7], outline="#fbbf24", width=4)
+
+    # 2. نافذة معاينة الديمو الحية على اليمين (Live Demo Frame)
+    fx, fy, fw, fh = 685, 115, 555, 420
+    draw.rounded_rectangle([fx + 10, fy + 12, fx + fw + 10, fy + fh + 12], radius=18, fill="#000000")
+    draw.rounded_rectangle([fx, fy, fx + fw, fy + fh], radius=16, fill="#1e293b", outline="#10b981", width=5)
+
+    # شريط المتصفح العلوي (macOS Style)
+    draw.rounded_rectangle([fx, fy, fx + fw, fy + 42], radius=14, fill="#0f172a")
+    draw.ellipse([fx + 18, fy + 13, fx + 34, fy + 29], fill="#ef4444")
+    draw.ellipse([fx + 42, fy + 13, fx + 58, fy + 29], fill="#f59e0b")
+    draw.ellipse([fx + 66, fy + 13, fx + 82, fy + 29], fill="#10b981")
+    f_url = ImageFont.truetype(FONT_BOLD, 16)
+    draw.text((fx + 105, fy + 12), f"{product.lower()[:18]} - live dashboard", font=f_url, fill="#94a3b8")
+
+    if os.path.exists(preview_img):
+        try:
+            shot = Image.open(preview_img).convert("RGB")
+            # قص الحافة العلوية للسكرين شوت لتركيز الصورة على لوحة التحكم
+            sw, sh = shot.size
+            shot = shot.crop((0, int(sh * 0.08), sw, sh)).resize((fw - 10, fh - 47))
+            base.paste(shot, (fx + 5, fy + 42))
+        except Exception:
+            pass
+
+    # شارة LIVE DEMO حمراء فوق المعاينة
+    draw.rounded_rectangle([fx + fw - 195, fy - 22, fx + fw - 10, fy + 28], radius=12, fill="#dc2626", outline="#ffffff", width=3)
+    f_live = ImageFont.truetype(FONT_BOLD, 22)
+    draw.text((fx + fw - 175, fy - 9), "▶ LIVE DEMO", font=f_live, fill="#ffffff")
+
+    # 3. الشارة التحذيرية العلوية الخاطفة للعين (Top Hook Badge)
+    draw.rounded_rectangle([42, 38, 635, 102], radius=14, fill="#dc2626", outline="#ffffff", width=3)
+    f_hook = ImageFont.truetype(FONT_BOLD, 30)
+    draw.text((62, 53), "WATCH BEFORE YOU BUY!", font=f_hook, fill="#ffffff", stroke_width=2, stroke_fill="#000000")
+
+    # 4. اسم المنتج الضخم بحواف ثلاثية الأبعاد (Main Headline)
+    prod_clean = product.upper()
+    f_prod = fit_font(draw, prod_clean, FONT_BOLD, max_width=610, start_size=86, min_size=44)
+    draw.text((48, 128), prod_clean, font=f_prod, fill="#000000", stroke_width=10, stroke_fill="#000000")
+    draw.text((44, 122), prod_clean, font=f_prod, fill="#ffffff", stroke_width=6, stroke_fill="#000000")
+
+    # السطر الثاني باللون الذهبي
+    f_sub1 = ImageFont.truetype(FONT_BOLD, 56)
+    draw.text((48, 232), "REVIEW & OTOs", font=f_sub1, fill="#000000", stroke_width=9, stroke_fill="#000000")
+    draw.text((44, 227), "REVIEW & OTOs", font=f_sub1, fill="#facc15", stroke_width=5, stroke_fill="#000000")
+
+    # 5. نقاط القوة السريعة (Checkmark Bullets)
+    f_bullet = ImageFont.truetype(FONT_BOLD, 29)
+    bullets = [
+        ("FULL OTOs + BUNDLE DEAL", "#10b981"),
+        ("HONEST PROS & CONS TEST", "#38bdf8"),
+    ]
+    by = 325
+    for b_txt, b_col in bullets:
+        draw.rounded_rectangle([44, by, 645, by + 64], radius=12, fill="#111827", outline=b_col, width=3)
+        draw.ellipse([60, by + 14, 96, by + 50], fill=b_col)
+        draw.text((70, by + 15), "✓", font=f_bullet, fill="#052e16")
+        draw.text((112, by + 16), b_txt, font=f_bullet, fill="#ffffff", stroke_width=2, stroke_fill="#000000")
+        by += 82
+
+    # 6. الشريط الذهبي السفلي للكوبون والبونص (Bottom High-CTR Callout Bar)
+    draw.rounded_rectangle([42, 575, W - 42, 682], radius=18, fill="#facc15", outline="#ffffff", width=4)
+    f_bar = fit_font(draw, f"COUPON: {coupon}  •  FREE $24,000 VIP BONUS", FONT_BOLD, max_width=1130, start_size=44, min_size=30)
+    bar_txt = f"COUPON: {coupon}  •  FREE $24,000 VIP BONUS"
+    bbox = draw.textbbox((0, 0), bar_txt, font=f_bar)
+    tx = (W - (bbox[2] - bbox[0])) // 2
+    draw.text((tx, 603), bar_txt, font=f_bar, fill="#090d16", stroke_width=1, stroke_fill="#ffffff")
+
+    base.save(out_png)
 
 def encode_unified_segment(inputs_args, filter_args, out_mp4, duration=None):
     cmd = ["ffmpeg", "-y"] + inputs_args
@@ -274,11 +391,12 @@ def main():
     p = load_payload()
     prod = p["product"]
 
+    # نحمل الديمو ونستخرج السكرين شوت أولاً لنستخدمها في خلفية الشرائح والصورة المصغرة
+    d_demo = download_and_shield_demo(p["demo_url"], prod, "seg2_demo.mp4")
+
     generate_tts(p["intro_script"], "intro.mp3", "intro.vtt")
     make_slide("intro.png", "HONEST LAUNCH AUDIT", f"{prod} Review & All OTOs", f"Active Coupon: {p['coupon']} + $24K VIP Bonus Vault")
     d_intro = slide_with_voice("intro.png", "intro.mp3", "seg1_intro.mp4")
-
-    d_demo = download_and_shield_demo(p["demo_url"], prod, "seg2_demo.mp4")
 
     generate_tts(p["bridge_script"], "bridge.mp3")
     make_slide("bridge.png", "$24,000 VIP BONUS VAULT", f"6 Free VIP Packages For {prod}", "Delivered Automatically Inside Your Receipt")
@@ -310,7 +428,8 @@ def main():
             f.write(f"file '{os.path.abspath(c)}'\n")
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "final_review.mp4"], check=True)
 
-    make_slide("thumb.png", "FULL OTOs + DEMO", f"{prod} Review & Bundle", f"Coupon: {p['coupon']} + Free $24K VIP Vault", size=(1280, 720))
+    # توليد الصورة المصغرة الاحترافية مع نافذة معاينة الديمو الحية
+    make_killer_thumbnail("thumb.png", prod, p["coupon"], "screenshot_2.webp")
 
     t_demo = d_intro
     t_bonus = d_intro + d_demo
