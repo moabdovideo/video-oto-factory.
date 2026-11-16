@@ -1,0 +1,76 @@
+name: OTOsLinks Automated Video Factory
+
+on:
+  repository_dispatch:
+    types: [build_review_video]
+  workflow_dispatch:
+    inputs:
+      product:
+        description: 'Product Name'
+        required: true
+      demo_url:
+        description: 'Vendor Demo Video URL'
+        required: true
+      aff_url:
+        description: 'Affiliate URL'
+        required: true
+      wp_post_id:
+        description: 'WordPress Post ID (optional)'
+        required: false
+        default: ''
+      coupon:
+        description: 'Active Coupon Code'
+        required: false
+        default: 'VIPDEAL'
+      intro_script:
+        description: 'Spoken Intro & Funnel Script'
+        required: true
+      bridge_script:
+        description: '1-Sentence Bridge Into Bonus Vault'
+        required: true
+
+jobs:
+  render_and_publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install FFmpeg & Libraries
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          pip install --upgrade edge-tts yt-dlp Pillow google-api-python-client google-auth requests
+
+      - name: Cache Reusable Bonus Vault Clip
+        uses: actions/cache@v4
+        with:
+          path: assets_cache
+          key: bonus-vault-clip-v1
+
+      - name: Build, Shield, Upload & Embed Video
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_COOKIES_B64: ${{ secrets.YT_COOKIES_B64 }}
+          BONUS_VAULT_MP4_URL: ${{ secrets.BONUS_VAULT_MP4_URL }}
+          WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          DISPATCH_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          INPUT_PRODUCT: ${{ inputs.product }}
+          INPUT_DEMO_URL: ${{ inputs.demo_url }}
+          INPUT_AFF_URL: ${{ inputs.aff_url }}
+          INPUT_WP_POST_ID: ${{ inputs.wp_post_id }}
+          INPUT_COUPON: ${{ inputs.coupon }}
+          INPUT_INTRO: ${{ inputs.intro_script }}
+          INPUT_BRIDGE: ${{ inputs.bridge_script }}
+        run: python scripts/factory.py
