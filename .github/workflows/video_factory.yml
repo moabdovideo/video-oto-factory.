@@ -1,85 +1,90 @@
 name: OTOsLinks Automated Video Factory
 
 on:
-  repository_dispatch:
-    types: [build_review_video]
   workflow_dispatch:
     inputs:
-      product:
-        description: 'Product Name'
+      product_name:
+        description: "Product Name (e.g. SaleSeason AI)"
         required: true
+        default: "SaleSeason AI"
+      main_result:
+        description: "Main Result (what the product does)"
+        required: false
+        default: "launch automated seasonal eCommerce stores in minutes"
+      feature_1:
+        description: "Feature 1"
+        required: false
+        default: "1-Click Seasonal & Affiliate Store Creation Across Any Niche"
+      feature_2:
+        description: "Feature 2"
+        required: false
+        default: "Automated AI Product Descriptions, Deal Pages & SEO Optimization"
+      feature_3:
+        description: "Feature 3"
+        required: false
+        default: "Built-In Stripe, PayPal & Custom Domain Integration"
+      coupon_code:
+        description: "Active Discount Coupon Code"
+        required: false
+        default: "SEASON3OFF"
       demo_url:
-        description: 'Vendor Demo Video URL'
-        required: true
-      aff_url:
-        description: 'Affiliate URL'
+        description: "Demo Video URL (YouTube, Vimeo, or direct .mp4)"
         required: false
-        default: 'https://otoslinks.com'
-      wp_post_id:
-        description: 'WordPress Post ID (optional)'
+        default: ""
+      affiliate_link:
+        description: "Your Review or Affiliate Link"
         required: false
-        default: ''
-      coupon:
-        description: 'Active Coupon Code'
+        default: "https://otoslinks.com/"
+      voice_name:
+        description: "Natural AI Voice"
         required: false
-        default: 'VIPDEAL'
-      intro_script:
-        description: 'Spoken Intro & Funnel Script'
-        required: true
-      bridge_script:
-        description: '1-Sentence Bridge Into Bonus Vault'
-        required: true
+        default: "en-US-AndrewMultilingualNeural"
+
+  repository_dispatch:
+    types: [build_review_video]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   render_and_publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install FFmpeg & Libraries
+      - name: Install FFmpeg & Studio Fonts
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg fonts-dejavu-core
-          pip install --upgrade edge-tts yt-dlp Pillow google-api-python-client google-auth requests
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-liberation
 
-      - name: Cache Reusable Bonus Vault Clip
-        uses: actions/cache@v4
-        with:
-          path: assets_cache
-          key: bonus-vault-clip-v1
+      - name: Install Python Packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Build, Shield, Upload & Embed Video
+      - name: Build Video, Thumbnail & SEO Chapters
         env:
-          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-          YT_COOKIES_B64: ${{ secrets.YT_COOKIES_B64 }}
-          BONUS_VAULT_MP4_URL: ${{ secrets.BONUS_VAULT_MP4_URL }}
-          WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
-          WP_USER: ${{ secrets.WP_USER }}
-          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
-          DISPATCH_PAYLOAD: ${{ toJson(github.event.client_payload) }}
-          INPUT_PRODUCT: ${{ inputs.product }}
-          INPUT_DEMO_URL: ${{ inputs.demo_url }}
-          INPUT_AFF_URL: ${{ inputs.aff_url }}
-          INPUT_WP_POST_ID: ${{ inputs.wp_post_id }}
-          INPUT_COUPON: ${{ inputs.coupon }}
-          INPUT_INTRO: ${{ inputs.intro_script }}
-          INPUT_BRIDGE: ${{ inputs.bridge_script }}
-        run: python scripts/factory.py
+          PRODUCT_NAME: ${{ inputs.product_name || github.event.client_payload.product_name || 'SaleSeason AI' }}
+          MAIN_RESULT: ${{ inputs.main_result || github.event.client_payload.main_result || 'launch automated seasonal eCommerce stores in minutes' }}
+          FEATURE_1: ${{ inputs.feature_1 || github.event.client_payload.feature_1 || '1-Click Seasonal & Affiliate Store Creation Across Any Niche' }}
+          FEATURE_2: ${{ inputs.feature_2 || github.event.client_payload.feature_2 || 'Automated AI Product Descriptions, Deal Pages & SEO Optimization' }}
+          FEATURE_3: ${{ inputs.feature_3 || github.event.client_payload.feature_3 || 'Built-In Stripe, PayPal & Custom Domain Integration' }}
+          COUPON_CODE: ${{ inputs.coupon_code || github.event.client_payload.coupon_code || 'SEASON3OFF' }}
+          DEMO_URL: ${{ inputs.demo_url || github.event.client_payload.demo_url || '' }}
+          AFFILIATE_LINK: ${{ inputs.affiliate_link || github.event.client_payload.affiliate_link || 'https://otoslinks.com/' }}
+          VOICE_NAME: ${{ inputs.voice_name || github.event.client_payload.voice_name || 'en-US-AndrewMultilingualNeural' }}
+        run: |
+          python scripts/build_video.py
 
-      - name: Save Generated Video & Screenshots
+      - name: Upload Ready Video Pack
         uses: actions/upload-artifact@v4
         with:
           name: review-output-pack
-          path: |
-            final_review.mp4
-            thumb.png
-            screenshot_*.webp
+          path: review-output-pack/
+          retention-days: 14
