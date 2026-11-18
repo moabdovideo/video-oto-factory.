@@ -4,29 +4,29 @@ on:
   workflow_dispatch:
     inputs:
       product_name:
-        description: "Product Name (e.g. SaleSeason AI)"
+        description: "Product Name (e.g. AI Secret Image Codebook)"
         required: true
-        default: "SaleSeason AI"
+        default: "AI Secret Image Codebook"
       main_result:
         description: "Main Result (what the product does)"
         required: false
-        default: "launch automated seasonal eCommerce stores in minutes"
+        default: "generate studio-grade commercial graphics using secret style parameters"
       feature_1:
         description: "Feature 1"
         required: false
-        default: "1-Click Seasonal & Affiliate Store Creation Across Any Niche"
+        default: "Secret Style Reference Matrix & Optical Camera Lighting Tokens"
       feature_2:
         description: "Feature 2"
         required: false
-        default: "Automated AI Product Descriptions, Deal Pages & SEO Optimization"
+        default: "Multi-Scene Character Consistency Lock & Crisp Typography Syntax"
       feature_3:
         description: "Feature 3"
         required: false
-        default: "Built-In Stripe, PayPal & Custom Domain Integration"
+        default: "Print-On-Demand Vector Isolation & Commercial Product Mockup Codes"
       coupon_code:
         description: "Active Discount Coupon Code"
         required: false
-        default: "SEASON3OFF"
+        default: "CODEBOOKVIP"
       demo_url:
         description: "Demo Video URL (YouTube, Vimeo, or direct .mp4)"
         required: false
@@ -36,9 +36,9 @@ on:
         required: false
         default: "https://otoslinks.com/"
       voice_name:
-        description: "Natural AI Voice"
+        description: "Natural AI Voice (auto-falls back to Ryan Studio HD if Edge is blocked)"
         required: false
-        default: "en-US-AndrewMultilingualNeural"
+        default: "en-US-GuyNeural"
 
   repository_dispatch:
     types: [build_review_video]
@@ -58,27 +58,28 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install FFmpeg & Studio Fonts
+      - name: Install FFmpeg, Studio Fonts & Audio Libs
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-liberation
+          sudo apt-get install -y ffmpeg espeak-ng libgomp1 fonts-dejavu-core fonts-liberation
 
       - name: Install Python Packages
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --upgrade -r requirements.txt
 
       - name: Build Video, Thumbnail & SEO Chapters
         env:
-          PRODUCT_NAME: ${{ inputs.product_name || github.event.client_payload.product_name || 'SaleSeason AI' }}
-          MAIN_RESULT: ${{ inputs.main_result || github.event.client_payload.main_result || 'launch automated seasonal eCommerce stores in minutes' }}
-          FEATURE_1: ${{ inputs.feature_1 || github.event.client_payload.feature_1 || '1-Click Seasonal & Affiliate Store Creation Across Any Niche' }}
-          FEATURE_2: ${{ inputs.feature_2 || github.event.client_payload.feature_2 || 'Automated AI Product Descriptions, Deal Pages & SEO Optimization' }}
-          FEATURE_3: ${{ inputs.feature_3 || github.event.client_payload.feature_3 || 'Built-In Stripe, PayPal & Custom Domain Integration' }}
-          COUPON_CODE: ${{ inputs.coupon_code || github.event.client_payload.coupon_code || 'SEASON3OFF' }}
+          PRODUCT_NAME: ${{ inputs.product_name || github.event.client_payload.product_name || 'AI Secret Image Codebook' }}
+          MAIN_RESULT: ${{ inputs.main_result || github.event.client_payload.main_result || 'generate studio-grade commercial graphics using secret style parameters' }}
+          FEATURE_1: ${{ inputs.feature_1 || github.event.client_payload.feature_1 || 'Secret Style Reference Matrix & Optical Camera Lighting Tokens' }}
+          FEATURE_2: ${{ inputs.feature_2 || github.event.client_payload.feature_2 || 'Multi-Scene Character Consistency Lock & Crisp Typography Syntax' }}
+          FEATURE_3: ${{ inputs.feature_3 || github.event.client_payload.feature_3 || 'Print-On-Demand Vector Isolation & Commercial Product Mockup Codes' }}
+          COUPON_CODE: ${{ inputs.coupon_code || github.event.client_payload.coupon_code || 'CODEBOOKVIP' }}
           DEMO_URL: ${{ inputs.demo_url || github.event.client_payload.demo_url || '' }}
           AFFILIATE_LINK: ${{ inputs.affiliate_link || github.event.client_payload.affiliate_link || 'https://otoslinks.com/' }}
-          VOICE_NAME: ${{ inputs.voice_name || github.event.client_payload.voice_name || 'en-US-AndrewMultilingualNeural' }}
+          VOICE_NAME: ${{ inputs.voice_name || github.event.client_payload.voice_name || 'en-US-GuyNeural' }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
         run: |
           python scripts/build_video.py
 
