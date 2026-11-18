@@ -28,7 +28,7 @@ on:
         required: false
         default: "CODEBOOKVIP"
       demo_url:
-        description: "Demo Video URL (YouTube, Vimeo, or direct .mp4)"
+        description: "Demo Video URL (YouTube, Vimeo, Wistia, or direct .mp4)"
         required: false
         default: ""
       affiliate_link:
