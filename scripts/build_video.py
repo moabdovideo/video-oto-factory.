@@ -18,6 +18,7 @@ import wave
 import shutil
 import tarfile
 import asyncio
+import json
 import argparse
 import subprocess
 from pathlib import Path
@@ -1867,7 +1868,51 @@ In this {args.product_name} review and live walkthrough, we jump straight inside
 #{args.product_name.replace(' ', '')} #{args.product_name.replace(' ', '')}Review #{args.product_name.replace(' ', '')}Demo #{args.product_name.replace(' ', '')}OTOs
 """
     (OUT_DIR / "youtube_seo_pack.txt").write_text(seo_text, encoding="utf-8")
-    print("SUCCESS! v6.1 TURBO Faceless Video (No-Coupon-Leak CRO), Thumbnail & SEO Pack generated in:", OUT_DIR)
+
+    # 9. Export Structured YouTube Metadata JSON (Strict <=98-char Title, Zero Coupon Leak)
+    p_clean = args.product_name.replace("<", "").replace(">", "").strip()
+    yt_title = f"{p_clean} Review: Full Demo + OTOs 🔴 {p_clean} Review + Secret Coupon + 120 VIP Bonuses"
+    if len(yt_title) > 98:
+        yt_title = f"{p_clean} Review & Live Demo 🔴 OTOs + Secret Coupon + 120 VIP Bonuses"
+    if len(yt_title) > 98:
+        yt_title = f"{p_clean} Review + Live Demo + Secret Coupon & 120 Bonuses"[:98].rstrip()
+
+    yt_desc = (
+        f"👉 Grab {p_clean} + Reveal Secret Coupon + All 120 VIP Bonuses ({args.bonus_value} Value): {args.affiliate_link}\n"
+        f"🎁 Browse All 120 PrimeSite Bonuses (6 Collections + Top 8 Power Tools): {args.bonus_page_url}\n\n"
+        f"In this {p_clean} review and live walkthrough, we jump straight inside the software so you can see how {p_clean} helps you {args.main_result}—plus a full breakdown of its top 3 features, OTO upgrades, secret discount deal, and our complete 120-resource PrimeSite Bonus Vault.\n\n"
+        f"⏱️ Video Chapters:\n"
+        f"{fmt_ts(t0)} {p_clean} Intro & Secret Discount Alert\n"
+        f"{fmt_ts(t_specs)} What Is {p_clean}? (Top 3 Core Features)\n"
+        f"{fmt_ts(t_demo)} {p_clean} Live Inside Demo Walkthrough\n"
+        f"{fmt_ts(t_bonus)} PrimeSite Bonus Vault — 6 Collections (120 Bonuses)\n"
+        f"{fmt_ts(t_top8)} Top 8 Executive Power Bonuses ($2,826+ Value Alone)\n"
+        f"{fmt_ts(t_outro)} Final Verdict & How to Claim Your Deal\n\n"
+        f"#{p_clean.replace(' ', '')} #{p_clean.replace(' ', '')}Review #{p_clean.replace(' ', '')}Demo #{p_clean.replace(' ', '')}OTOs"
+    )
+    yt_tags = [
+        f"{p_clean} review",
+        f"{p_clean} demo",
+        f"{p_clean} oto",
+        f"{p_clean} otos",
+        f"{p_clean} bonus",
+        f"{p_clean} bonuses",
+        f"{p_clean} coupon",
+        f"{p_clean} bundle",
+        f"{p_clean} walkthrough",
+        f"buy {p_clean}",
+    ]
+    yt_meta = {
+        "title": yt_title,
+        "description": yt_desc.replace("<", "").replace(">", ""),
+        "tags": yt_tags,
+        "category_id": "28",
+        "privacy_status": os.getenv("YT_PRIVACY_STATUS", "public"),
+        "post_id": os.getenv("POST_ID", ""),
+        "post_url": args.affiliate_link,
+    }
+    (OUT_DIR / "youtube_metadata.json").write_text(json.dumps(yt_meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    print("SUCCESS! v7.0 AUTO-PILOT Faceless Video, Thumbnail, SEO Pack & YouTube Metadata ready in:", OUT_DIR)
 
 
 if __name__ == "__main__":
