@@ -27,6 +27,14 @@ on:
         description: "Active Discount Coupon Code"
         required: false
         default: "CODEBOOKVIP"
+      bonus_value:
+        description: "PrimeSite Bonus Vault Value Label"
+        required: false
+        default: "$24,000+"
+      bonus_page_url:
+        description: "Bonus Vault Page URL"
+        required: false
+        default: "https://otoslinks.com/vip-hot-bonuses-value-24k/"
       demo_url:
         description: "Demo Video URL (YouTube, Vimeo, Wistia, or direct .mp4)"
         required: false
@@ -39,6 +47,10 @@ on:
         description: "Natural AI Voice (auto-falls back to Ryan Studio HD if Edge is blocked)"
         required: false
         default: "en-US-GuyNeural"
+      build_standalone_vault:
+        description: "Also export standalone primesite_bonus_vault_promo.mp4 (true/false)"
+        required: false
+        default: "true"
 
   repository_dispatch:
     types: [build_review_video]
@@ -68,7 +80,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade -r requirements.txt
 
-      - name: Build Video, Thumbnail & SEO Chapters
+      - name: Build Faceless Motion-Graphics Video, PrimeSite Vault Promo & SEO Pack
         env:
           PRODUCT_NAME: ${{ inputs.product_name || github.event.client_payload.product_name || 'AI Secret Image Codebook' }}
           MAIN_RESULT: ${{ inputs.main_result || github.event.client_payload.main_result || 'generate studio-grade commercial graphics using secret style parameters' }}
@@ -76,9 +88,12 @@ jobs:
           FEATURE_2: ${{ inputs.feature_2 || github.event.client_payload.feature_2 || 'Multi-Scene Character Consistency Lock & Crisp Typography Syntax' }}
           FEATURE_3: ${{ inputs.feature_3 || github.event.client_payload.feature_3 || 'Print-On-Demand Vector Isolation & Commercial Product Mockup Codes' }}
           COUPON_CODE: ${{ inputs.coupon_code || github.event.client_payload.coupon_code || 'CODEBOOKVIP' }}
+          BONUS_VALUE: ${{ inputs.bonus_value || github.event.client_payload.bonus_value || '$24,000+' }}
+          BONUS_PAGE_URL: ${{ inputs.bonus_page_url || github.event.client_payload.bonus_page_url || 'https://otoslinks.com/vip-hot-bonuses-value-24k/' }}
           DEMO_URL: ${{ inputs.demo_url || github.event.client_payload.demo_url || '' }}
           AFFILIATE_LINK: ${{ inputs.affiliate_link || github.event.client_payload.affiliate_link || 'https://otoslinks.com/' }}
           VOICE_NAME: ${{ inputs.voice_name || github.event.client_payload.voice_name || 'en-US-GuyNeural' }}
+          BUILD_STANDALONE_VAULT: ${{ inputs.build_standalone_vault || github.event.client_payload.build_standalone_vault || 'true' }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
         run: |
           python scripts/build_video.py
