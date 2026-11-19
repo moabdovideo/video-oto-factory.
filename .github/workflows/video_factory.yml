@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       product_name:
-        description: "Product Name (e.g. AI Secret Image Codebook)"
+        description: "Product Name (leave default or edit for manual run)"
         required: true
         default: "AI Secret Image Codebook"
       main_result:
@@ -23,14 +23,6 @@ on:
         description: "Feature 3"
         required: false
         default: "Print-On-Demand Vector Isolation & Commercial Product Mockup Codes"
-      bonus_value:
-        description: "PrimeSite Bonus Vault Value Label"
-        required: false
-        default: "$24,000+"
-      bonus_page_url:
-        description: "Bonus Vault Page URL"
-        required: false
-        default: "https://otoslinks.com/vip-hot-bonuses-value-24k/"
       demo_url:
         description: "Demo Video URL (YouTube, Vimeo, Wistia, or direct .mp4)"
         required: false
@@ -39,6 +31,18 @@ on:
         description: "Your Review Page Link (where visitor reveals coupon)"
         required: false
         default: "https://otoslinks.com/"
+      bonus_value:
+        description: "PrimeSite Bonus Vault Value Label"
+        required: false
+        default: "$24,000+"
+      bonus_page_url:
+        description: "Bonus Vault Page URL"
+        required: false
+        default: "https://otoslinks.com/vip-hot-bonuses-value-24k/"
+      yt_privacy_status:
+        description: "YouTube Upload Privacy (public / unlisted / private)"
+        required: false
+        default: "public"
       voice_name:
         description: "Natural AI Voice (auto-falls back to Ryan Studio HD if Edge is blocked)"
         required: false
@@ -82,25 +86,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade -r requirements.txt
 
-      - name: Build v6.1 TURBO Faceless Video, Thumbnail & SEO Pack
+      - name: Step 1 - Smart Extract Article Specs & Demo URL
         env:
-          PRODUCT_NAME: ${{ inputs.product_name || github.event.client_payload.product_name || 'AI Secret Image Codebook' }}
-          MAIN_RESULT: ${{ inputs.main_result || github.event.client_payload.main_result || 'generate studio-grade commercial graphics using secret style parameters' }}
-          FEATURE_1: ${{ inputs.feature_1 || github.event.client_payload.feature_1 || 'Secret Style Reference Matrix & Optical Camera Lighting Tokens' }}
-          FEATURE_2: ${{ inputs.feature_2 || github.event.client_payload.feature_2 || 'Multi-Scene Character Consistency Lock & Crisp Typography Syntax' }}
-          FEATURE_3: ${{ inputs.feature_3 || github.event.client_payload.feature_3 || 'Print-On-Demand Vector Isolation & Commercial Product Mockup Codes' }}
-          COUPON_CODE: ${{ github.event.client_payload.coupon_code || '' }}
-          BONUS_VALUE: ${{ inputs.bonus_value || github.event.client_payload.bonus_value || '$24,000+' }}
-          BONUS_PAGE_URL: ${{ inputs.bonus_page_url || github.event.client_payload.bonus_page_url || 'https://otoslinks.com/vip-hot-bonuses-value-24k/' }}
-          DEMO_URL: ${{ inputs.demo_url || github.event.client_payload.demo_url || '' }}
-          AFFILIATE_LINK: ${{ inputs.affiliate_link || github.event.client_payload.affiliate_link || 'https://otoslinks.com/' }}
-          VOICE_NAME: ${{ inputs.voice_name || github.event.client_payload.voice_name || 'en-US-GuyNeural' }}
-          BUILD_STANDALONE_VAULT: ${{ inputs.build_standalone_vault || github.event.client_payload.build_standalone_vault || 'false' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python scripts/extract_article_data.py
+
+      - name: Step 2 - Build v7.0 TURBO Faceless Video, Thumbnail & SEO Pack
+        env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
         run: |
           python scripts/build_video.py
 
-      - name: Upload Ready Video Pack
+      - name: Step 3 - Auto-Publish Directly to YouTube Channel
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_PLAYLIST_ID: ${{ secrets.YT_PLAYLIST_ID }}
+          CALLBACK_WEBHOOK_URL: ${{ secrets.CALLBACK_WEBHOOK_URL }}
+        run: |
+          python scripts/upload_to_youtube.py
+
+      - name: Step 4 - Upload Backup Video Pack Artifact
         uses: actions/upload-artifact@v4
         with:
           name: review-output-pack
