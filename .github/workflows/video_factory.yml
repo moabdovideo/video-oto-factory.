@@ -23,10 +23,6 @@ on:
         description: "Feature 3"
         required: false
         default: "Print-On-Demand Vector Isolation & Commercial Product Mockup Codes"
-      coupon_code:
-        description: "Active Discount Coupon Code"
-        required: false
-        default: "CODEBOOKVIP"
       bonus_value:
         description: "PrimeSite Bonus Vault Value Label"
         required: false
@@ -40,7 +36,7 @@ on:
         required: false
         default: ""
       affiliate_link:
-        description: "Your Review or Affiliate Link"
+        description: "Your Review Page Link (where visitor reveals coupon)"
         required: false
         default: "https://otoslinks.com/"
       voice_name:
@@ -48,9 +44,9 @@ on:
         required: false
         default: "en-US-GuyNeural"
       build_standalone_vault:
-        description: "Also export standalone primesite_bonus_vault_promo.mp4 (true/false)"
+        description: "Also export standalone primesite_bonus_vault_promo.mp4 (false = TURBO)"
         required: false
-        default: "true"
+        default: "false"
 
   repository_dispatch:
     types: [build_review_video]
@@ -70,6 +66,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Cache Piper Studio Voice Engine (Turbo)
+        uses: actions/cache@v4
+        with:
+          path: /tmp/piper_studio
+          key: piper-studio-ryan-high-v1
+
       - name: Install FFmpeg, Studio Fonts & Audio Libs
         run: |
           sudo apt-get update
@@ -80,20 +82,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade -r requirements.txt
 
-      - name: Build Faceless Motion-Graphics Video, PrimeSite Vault Promo & SEO Pack
+      - name: Build v6.1 TURBO Faceless Video, Thumbnail & SEO Pack
         env:
           PRODUCT_NAME: ${{ inputs.product_name || github.event.client_payload.product_name || 'AI Secret Image Codebook' }}
           MAIN_RESULT: ${{ inputs.main_result || github.event.client_payload.main_result || 'generate studio-grade commercial graphics using secret style parameters' }}
           FEATURE_1: ${{ inputs.feature_1 || github.event.client_payload.feature_1 || 'Secret Style Reference Matrix & Optical Camera Lighting Tokens' }}
           FEATURE_2: ${{ inputs.feature_2 || github.event.client_payload.feature_2 || 'Multi-Scene Character Consistency Lock & Crisp Typography Syntax' }}
           FEATURE_3: ${{ inputs.feature_3 || github.event.client_payload.feature_3 || 'Print-On-Demand Vector Isolation & Commercial Product Mockup Codes' }}
-          COUPON_CODE: ${{ inputs.coupon_code || github.event.client_payload.coupon_code || 'CODEBOOKVIP' }}
+          COUPON_CODE: ${{ github.event.client_payload.coupon_code || '' }}
           BONUS_VALUE: ${{ inputs.bonus_value || github.event.client_payload.bonus_value || '$24,000+' }}
           BONUS_PAGE_URL: ${{ inputs.bonus_page_url || github.event.client_payload.bonus_page_url || 'https://otoslinks.com/vip-hot-bonuses-value-24k/' }}
           DEMO_URL: ${{ inputs.demo_url || github.event.client_payload.demo_url || '' }}
           AFFILIATE_LINK: ${{ inputs.affiliate_link || github.event.client_payload.affiliate_link || 'https://otoslinks.com/' }}
           VOICE_NAME: ${{ inputs.voice_name || github.event.client_payload.voice_name || 'en-US-GuyNeural' }}
-          BUILD_STANDALONE_VAULT: ${{ inputs.build_standalone_vault || github.event.client_payload.build_standalone_vault || 'true' }}
+          BUILD_STANDALONE_VAULT: ${{ inputs.build_standalone_vault || github.event.client_payload.build_standalone_vault || 'false' }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
         run: |
           python scripts/build_video.py
