@@ -92,9 +92,10 @@ jobs:
         run: |
           python scripts/extract_article_data.py
 
-      - name: Step 2 - Build v7.0 TURBO Faceless Video, Thumbnail & SEO Pack
+      - name: Step 2 - Build v7.2 TURBO Faceless Video, Thumbnail & SEO Pack
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          YTDLP_COOKIES: ${{ secrets.YTDLP_COOKIES }}
         run: |
           python scripts/build_video.py
 
