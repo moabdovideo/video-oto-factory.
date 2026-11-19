@@ -46,13 +46,14 @@ def detect_demo_url(text_or_html: str) -> str:
         r'https?://[^\s"\'<>]*wi\.st/(?:medias|embed/iframe|embed)/[a-zA-Z0-9]+',
         r'wistia_async_([a-zA-Z0-9]{6,})',
         r'https?://(?:www\.)?(?:youtube\.com/(?:watch\?v=|embed/)|youtu\.be/)[a-zA-Z0-9_-]{8,}',
-        r'https?://(?:player\.)?vimeo\.com/(?:video/)?[0-9]{6,}',
+        r'wistia-player[^>]+media-id=["\']([a-zA-Z0-9]{6,})["\']',
+        r'https?://(?:player\.)?vimeo\.com/(?:video/)?[0-9]{6,}(?:/[a-fA-F0-9]{6,}|\?[^\s"\'<>]*h=[a-fA-F0-9]{6,}[^\s"\'<>]*)?',
         r'https?://[^\s"\'<>]+\.mp4(?:\?[^\s"\'<>]*)?',
     ]
     for pat in patterns:
         m = re.search(pat, raw, flags=re.IGNORECASE)
         if m:
-            if pat.startswith("wistia_async_"):
+            if pat.startswith("wistia_async_") or pat.startswith("wistia-player"):
                 return f"https://fast.wistia.net/embed/iframe/{m.group(1)}"
             return m.group(0).rstrip(".,;)")
     return ""
@@ -132,7 +133,7 @@ ARTICLE CONTENT:
 def heuristic_extract(article_title: str, article_text: str) -> dict:
     """Zero-API fallback parser that extracts product name, result, and 3 clean features from text."""
     pname = clean_product_name_from_title(article_title)
-    skip_words = ("introduction", "conclusion", "verdict", "faq", "pricing", "price", "oto", "upsell", "bonus", "coupon", "refund", "guarantee", "table of contents", "pros and cons")
+    skip_words = ("introduction", "conclusion", "verdict", "faq", "pricing", "price", "oto", "upsell", "bonus", "coupon", "promo", "discount", "offer status", "active & working", "checkout", "funnel", "verified official", "% off", "off today", "limited time", "click here", "vip", "refund", "guarantee", "table of contents", "pros and cons")
 
     candidates = []
     for raw_line in (article_text or "").splitlines():
