@@ -1559,27 +1559,171 @@ def normalize_demo_url(raw_input: str) -> tuple:
     return cleaned, is_streaming
 
 
-def download_or_build_demo(demo_url: str, raw_demo_path: Path, fallback_slide: Path):
+def _build_vimeo_variants(url: str) -> list:
+    """Returns player.vimeo.com FIRST (bypasses Vimeo logged-in web client block), preserving unlisted hashes."""
+    variants = []
+    m_path_hash = re.search(r'vimeo\.com/(?:video/)?(\d{6,})/([a-fA-F0-9]{6,})', url, flags=re.IGNORECASE)
+    m_query_hash = re.search(r'vimeo\.com/(?:video/)?(\d{6,}).*?[?&]h=([a-fA-F0-9]{6,})', url, flags=re.IGNORECASE)
+    m_plain = re.search(r'vimeo\.com/(?:video/)?(\d{6,})', url, flags=re.IGNORECASE)
+
+    if m_path_hash:
+        vid, h = m_path_hash.group(1), m_path_hash.group(2)
+        candidates = [f"https://player.vimeo.com/video/{vid}?h={h}", f"https://vimeo.com/{vid}/{h}", url]
+    elif m_query_hash:
+        vid, h = m_query_hash.group(1), m_query_hash.group(2)
+        candidates = [f"https://player.vimeo.com/video/{vid}?h={h}", f"https://vimeo.com/{vid}/{h}", url]
+    elif m_plain:
+        vid = m_plain.group(1)
+        candidates = [f"https://player.vimeo.com/video/{vid}", f"https://vimeo.com/{vid}", url]
+    else:
+        candidates = [url]
+
+    for c in candidates:
+        if c and c not in variants:
+            variants.append(c)
+    return variants
+
+
+def _try_direct_vimeo_config(vimeo_url: str, raw_demo_path: Path, referers: list, ua: str) -> bool:
+    """Direct player.vimeo.com/video/{id}/config fallback using curl_cffi Chrome impersonation."""
+    m = re.search(r'vimeo\.com/(?:video/)?(\d{6,})', vimeo_url, flags=re.IGNORECASE)
+    if not m:
+        return False
+    vid = m.group(1)
+    h_match = re.search(r'(?:[?&]h=|/\d{6,}/)([a-fA-F0-9]{6,})', vimeo_url, flags=re.IGNORECASE)
+    h_param = f"?h={h_match.group(1)}" if h_match else ""
+    cfg_url = f"https://player.vimeo.com/video/{vid}/config{h_param}"
+
+    try:
+        from curl_cffi import requests as cffi_requests
+        http_get = lambda u, hdrs: cffi_requests.get(u, headers=hdrs, impersonate="chrome", timeout=25)
+    except Exception:
+        http_get = lambda u, hdrs: requests.get(u, headers=hdrs, timeout=25)
+
+    for ref in referers:
+        try:
+            r = http_get(cfg_url, {"User-Agent": ua, "Referer": ref, "Accept": "application/json"})
+            if r.status_code != 200:
+                print(f"[DEMO] Vimeo config HTTP {r.status_code} (referer={ref})")
+                continue
+            data = r.json()
+            files = data.get("request", {}).get("files", {})
+            # 1) Progressive MP4 streams (fastest & cleanest)
+            prog = files.get("progressive") or []
+            if prog:
+                prog_sorted = sorted(prog, key=lambda x: abs(int(x.get("height") or 0) - 720))
+                mp4_url = prog_sorted[0].get("url")
+                if mp4_url:
+                    print(f"[DEMO] Downloading direct Vimeo progressive MP4 ({prog_sorted[0].get('quality')})...")
+                    with requests.get(mp4_url, headers={"User-Agent": ua, "Referer": ref}, stream=True, timeout=180) as vr:
+                        vr.raise_for_status()
+                        with open(raw_demo_path, "wb") as f:
+                            for chunk in vr.iter_content(chunk_size=1024 * 1024):
+                                if chunk:
+                                    f.write(chunk)
+                    if has_video_stream(raw_demo_path):
+                        print("[DEMO] SUCCESS! Downloaded Vimeo progressive MP4 directly.")
+                        return True
+            # 2) HLS m3u8 stream via FFmpeg
+            hls = files.get("hls", {})
+            cdns = hls.get("cdns", {})
+            default_cdn = hls.get("default_cdn")
+            hls_url = None
+            if default_cdn and default_cdn in cdns:
+                hls_url = cdns[default_cdn].get("url")
+            elif cdns:
+                hls_url = next(iter(cdns.values())).get("url")
+            if hls_url:
+                print("[DEMO] Downloading Vimeo HLS stream via FFmpeg...")
+                ff = subprocess.run([
+                    "ffmpeg", "-y",
+                    "-headers", f"Referer: {ref}\r\nUser-Agent: {ua}\r\n",
+                    "-i", hls_url,
+                    "-c", "copy", "-bsf:a", "aac_adtstoasc",
+                    str(raw_demo_path),
+                ], capture_output=True, text=True)
+                if ff.returncode == 0 and has_video_stream(raw_demo_path):
+                    print("[DEMO] SUCCESS! Downloaded Vimeo HLS stream directly.")
+                    return True
+        except Exception as e:
+            print(f"[DEMO] Vimeo config fallback error (referer={ref}): {e}")
+    return False
+
+
+def _prepare_cookies_file() -> str:
+    """Optionally writes YTDLP_COOKIES secret (raw Netscape format) to a temp file for yt-dlp."""
+    raw_cookies = (os.getenv("YTDLP_COOKIES") or "").strip()
+    if not raw_cookies:
+        return ""
+    cookie_path = WORK_DIR / "ytdlp_cookies.txt"
+    cookie_path.write_text(raw_cookies + "\n", encoding="utf-8")
+    return str(cookie_path)
+
+
+def download_or_build_demo(demo_url: str, raw_demo_path: Path, fallback_slide: Path, referer_url: str = "https://otoslinks.com/"):
     target_url, is_streaming = normalize_demo_url(demo_url)
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    site_ref = (referer_url or "https://otoslinks.com/").strip()
+    cookies_file = _prepare_cookies_file()
+    cookie_flags = ["--cookies", cookies_file] if cookies_file else []
+
     if target_url:
         print(f"Downloading demo video from: {target_url}")
         raw_demo_path.unlink(missing_ok=True)
         try:
             if is_streaming:
                 temp_prefix = raw_demo_path.parent / "ytdlp_demo_raw"
-                for old_f in raw_demo_path.parent.glob("ytdlp_demo_raw.*"):
-                    old_f.unlink(missing_ok=True)
-                subprocess.run([
-                    "yt-dlp", "--no-playlist",
-                    "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080][ext=mp4]/best[height<=1080]/best",
-                    "--merge-output-format", "mp4",
-                    "-o", f"{temp_prefix}.%(ext)s", target_url
-                ], check=True)
-                downloaded = [p for p in raw_demo_path.parent.glob("ytdlp_demo_raw.*") if p.suffix.lower() not in (".part", ".ytdl", ".temp")]
-                if downloaded:
-                    shutil.move(str(downloaded[0]), str(raw_demo_path))
+                low = target_url.lower()
+                attempts = []
+
+                if "vimeo.com" in low:
+                    v_urls = _build_vimeo_variants(target_url)
+                    # Try player.vimeo.com + Chrome impersonation FIRST (bypasses web client login requirement!)
+                    for vu in v_urls:
+                        attempts.append((vu, ["--impersonate", "chrome", "--referer", site_ref, *cookie_flags]))
+                        attempts.append((vu, ["--impersonate", "chrome", "--referer", "https://vimeo.com/", *cookie_flags]))
+                        attempts.append((vu, ["--referer", site_ref, "--user-agent", ua, *cookie_flags]))
+                elif "youtube.com" in low or "youtu.be" in low:
+                    attempts.append((target_url, ["--impersonate", "chrome", *cookie_flags]))
+                    attempts.append((target_url, ["--extractor-args", "youtube:player_client=android,web", "--user-agent", ua, *cookie_flags]))
+                    attempts.append((target_url, ["--extractor-args", "youtube:player_client=tv_embedded,ios", "--user-agent", ua, *cookie_flags]))
+                else:
+                    attempts.append((target_url, ["--impersonate", "chrome", "--referer", site_ref, *cookie_flags]))
+                    attempts.append((target_url, ["--referer", site_ref, "--user-agent", ua, *cookie_flags]))
+
+                last_err = []
+                for idx, (cand_url, extra_flags) in enumerate(attempts, 1):
+                    for old_f in raw_demo_path.parent.glob("ytdlp_demo_raw.*"):
+                        old_f.unlink(missing_ok=True)
+                    cmd = [
+                        "yt-dlp", "--no-playlist", "--no-check-certificates",
+                        *extra_flags,
+                        "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080][ext=mp4]/best[height<=1080]/best",
+                        "--merge-output-format", "mp4",
+                        "-o", f"{temp_prefix}.%(ext)s", cand_url,
+                    ]
+                    print(f"[DEMO] Attempt {idx}/{len(attempts)}: {cand_url}")
+                    res = subprocess.run(cmd, capture_output=True, text=True)
+                    if res.returncode == 0:
+                        downloaded = [p for p in raw_demo_path.parent.glob("ytdlp_demo_raw.*") if p.suffix.lower() not in (".part", ".ytdl", ".temp")]
+                        if downloaded:
+                            shutil.move(str(downloaded[0]), str(raw_demo_path))
+                            if has_video_stream(raw_demo_path):
+                                print(f"[DEMO] SUCCESS! Downloaded live demo via attempt {idx}.")
+                                return
+                    else:
+                        last_err = (res.stderr or res.stdout or "").strip().splitlines()[-3:]
+                        print(f"[DEMO] Attempt {idx} failed: {' | '.join(last_err)}")
+
+                # Final direct Vimeo player config fallback (works even when yt-dlp web extractor fails!)
+                if "vimeo.com" in low:
+                    print("[DEMO] Trying direct Vimeo player config fallback...")
+                    if _try_direct_vimeo_config(target_url, raw_demo_path, [site_ref, "https://vimeo.com/", "https://player.vimeo.com/"], ua):
+                        return
+
+                raise RuntimeError(f"All {len(attempts)} download attempts failed. Last error: {' | '.join(last_err)}")
             else:
-                with requests.get(target_url, stream=True, timeout=120) as r:
+                with requests.get(target_url, headers={"User-Agent": ua, "Referer": site_ref}, stream=True, timeout=120) as r:
                     r.raise_for_status()
                     if "text/html" in (r.headers.get("Content-Type") or "").lower():
                         raise ValueError("URL returned HTML webpage instead of a direct video stream")
@@ -1802,7 +1946,7 @@ def main():
 
     print("[TURBO] 4/7 Downloading & Processing Live Demo...")
     raw_demo = WORK_DIR / "raw_demo.mp4"
-    download_or_build_demo(args.demo_url, raw_demo, fallback_demo_img)
+    download_or_build_demo(args.demo_url, raw_demo, fallback_demo_img, referer_url=args.affiliate_link)
     d_demo = process_demo_break_fingerprint(raw_demo, demo_overlay, v_demo)
 
     print("[TURBO] 5/7 Rendering PrimeSite Bonus Vault (6 Real Collections — 120 Bonuses)...")
@@ -1912,7 +2056,7 @@ In this {args.product_name} review and live walkthrough, we jump straight inside
         "post_url": args.affiliate_link,
     }
     (OUT_DIR / "youtube_metadata.json").write_text(json.dumps(yt_meta, indent=2, ensure_ascii=False), encoding="utf-8")
-    print("SUCCESS! v7.0 AUTO-PILOT Faceless Video, Thumbnail, SEO Pack & YouTube Metadata ready in:", OUT_DIR)
+    print("SUCCESS! v7.2 VIMEO-CFFI AUTO-PILOT Faceless Video, Thumbnail, SEO Pack & YouTube Metadata ready in:", OUT_DIR)
 
 
 if __name__ == "__main__":
