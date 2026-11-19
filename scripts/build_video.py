@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-OTOsLinks Automated Video Factory — v6 (Faceless Motion-Graphics + Real PrimeSite $24K Bonus Vault)
-- 100% Photo-Free Motion-Graphics Studio (1080p @ 30 FPS)
-- Kinetic Product Intro -> Core Features Spotlight -> Live Demo Stinger -> Live Demo
-- Real PrimeSite Bonus Vault Showcase (2 Scenes: 6 Collections [120 Bonuses] + Top 8 Power Bonuses)
-- Final Verdict & Animated CTA -> Also exports standalone primesite_bonus_vault_promo.mp4
-- Royalty-Free Synthesized Studio Ambient Bed + Transition Whoosh/Chime SFX
+OTOsLinks Automated Video Factory — v6.1 TURBO (Faceless + No-Coupon-Leak CRO Edition)
+- 100% Photo-Free Motion-Graphics Studio (1080p @ 24 FPS Turbo Engine)
+- ZERO Coupon Code Leak on Video, Voiceover, Thumbnail, or Description (Drives 100% Clicks to Site!)
+- Pre-Composited State Frame Caching + FFmpeg superfast + Zero-Reencode Stream-Copy Concat
+- Real PrimeSite $24K Bonus Vault (6 Collections / 120 Bonuses + Top 8 Power Tools)
+- Royalty-Free Synthesized Studio Ambient Bed + Transition SFX
 - Full Wistia / YouTube / Vimeo / Direct MP4 Support + Make.com repository_dispatch Ready
 """
 
@@ -47,7 +47,7 @@ OUT_DIR = BASE_DIR.parent / "review-output-pack"
 PIPER_CACHE = Path("/tmp/piper_studio")
 
 W, H = 1920, 1080
-FPS = 30
+FPS = 24  # Smooth cinematic broadcast standard (20% faster than 30fps)
 
 _LOCKED_TTS_ENGINE = None
 
@@ -173,16 +173,18 @@ def paste_rgba_alpha(base_rgb: Image.Image, patch_rgba: Image.Image, xy: tuple, 
 
 
 # ==============================================================================
-# STUDIO BACKGROUND & TOP BROADCAST TIMELINE BAR
+# FAST STUDIO BACKGROUND & TOP BROADCAST TIMELINE BAR (NO COUPON CODE SHOWN)
 # ==============================================================================
 
 def make_studio_background(variant: str = "default") -> Image.Image:
+    """Computes smooth studio bokeh gradients at half-res (4x faster), upscales, then overlays crisp 1080p grid."""
     if variant in _BG_CACHE:
         return _BG_CACHE[variant].copy()
 
-    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-    nx = xx / W
-    ny = yy / H
+    hw, hh = W // 2, H // 2
+    yy, xx = np.mgrid[0:hh, 0:hw].astype(np.float32)
+    nx = xx / hw
+    ny = yy / hh
 
     r = 6.0 + 10.0 * ny + 6.0 * (1.0 - nx)
     g = 10.0 + 14.0 * ny + 5.0 * nx
@@ -232,13 +234,12 @@ def make_studio_background(variant: str = "default") -> Image.Image:
         g += cg * mask
         b += cb * mask
 
-    vig = 1.0 - 0.28 * (((nx - 0.5) * 1.45) ** 2 + ((ny - 0.5) * 1.45) ** 2)
-    vig = np.clip(vig, 0.65, 1.0)
+    vig = np.clip(1.0 - 0.28 * (((nx - 0.5) * 1.45) ** 2 + ((ny - 0.5) * 1.45) ** 2), 0.65, 1.0)
     r = np.clip(r * vig, 0, 255).astype(np.uint8)
     g = np.clip(g * vig, 0, 255).astype(np.uint8)
     b = np.clip(b * vig, 0, 255).astype(np.uint8)
 
-    img = Image.fromarray(np.dstack([r, g, b]), mode="RGB").convert("RGBA")
+    img = Image.fromarray(np.dstack([r, g, b]), mode="RGB").resize((W, H), Image.Resampling.BILINEAR).convert("RGBA")
 
     grid_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(grid_layer)
@@ -256,8 +257,8 @@ def make_studio_background(variant: str = "default") -> Image.Image:
     return out.copy()
 
 
-def draw_top_timeline_bar(img_rgb: Image.Image, active_step: int, product_name: str, coupon_code: str,
-                          vault_mode: bool = False):
+def draw_top_timeline_bar(img_rgb: Image.Image, active_step: int, product_name: str,
+                          bonus_value: str, vault_mode: bool = False):
     overlay = Image.new("RGBA", (W, 84), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     draw.rectangle((0, 0, W, 82), fill=(8, 13, 28, 228))
@@ -296,8 +297,8 @@ def draw_top_timeline_bar(img_rgb: Image.Image, active_step: int, product_name: 
         draw.text((sx + (pill_w - tw) // 2, 41 - th // 2 - 1), label, font=f_step, fill=txt_col)
         sx += pill_w + 16
 
-    # Right pill
-    right_txt = "VALUE: $24,000+ FREE" if vault_mode else f"COUPON: {coupon_code[:12].upper()}"
+    # Right pill (Drives click to site — NO coupon code revealed!)
+    right_txt = f"VALUE: {bonus_value} FREE" if vault_mode else "SECRET DEAL: 1ST LINK ↓"
     draw_rrect(draw, (1535, 18, 1878, 64), radius=12, fill=(136, 19, 55, 245), outline=(250, 204, 21, 245), width=2)
     f_c = fit_font(draw, right_txt, 315, 20, 15, bold=True)
     cw, ch = text_size(draw, right_txt, f_c)
@@ -448,15 +449,25 @@ def mix_voice_with_studio_bed(voice_mp3: Path, out_mixed_aac: Path, with_chime: 
 
 
 # ==============================================================================
-# MOTION-GRAPHICS PIPELINE ENGINE (1080p @ 30 FPS — 100% FACELESS)
+# TURBO MOTION-GRAPHICS PIPELINE (1080p @ 24 FPS + UNIFIED H.264 FOR STREAM COPY)
 # ==============================================================================
+
+UNIFIED_H264_FLAGS = [
+    "-c:v", "libx264", "-preset", "superfast", "-crf", "21",
+    "-profile:v", "high", "-level", "4.1",
+    "-pix_fmt", "yuv420p",
+    "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
+    "-r", str(FPS), "-video_track_timescale", str(FPS * 1000),
+    "-threads", "0",
+]
+
 
 def _pipe_frames_to_ffmpeg(frame_generator, audio_path: Path, dur: float, out_mp4: Path):
     fade_out_start = max(0.2, dur - 0.28)
     vf = (
         f"setsar=1,fps={FPS},"
         f"fade=t=in:st=0:d=0.22,"
-        f"fade=t=out:st={fade_out_start:.2f}:d=0.26,"
+        f"fade=t=out:st={fade_out_start:.2f}:d=0.24,"
         f"format=yuv420p"
     )
     cmd = [
@@ -467,9 +478,9 @@ def _pipe_frames_to_ffmpeg(frame_generator, audio_path: Path, dur: float, out_mp
         "-i", str(audio_path),
         "-t", f"{dur:.2f}",
         "-vf", vf,
-        "-af", f"aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,afade=t=in:st=0:d=0.06,afade=t=out:st={fade_out_start:.2f}:d=0.20,apad",
+        "-af", f"aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,afade=t=in:st=0:d=0.06,afade=t=out:st={fade_out_start:.2f}:d=0.18,apad",
         "-map", "0:v:0", "-map", "1:a:0",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        *UNIFIED_H264_FLAGS,
         "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
         str(out_mp4),
     ]
@@ -487,19 +498,19 @@ def _pipe_frames_to_ffmpeg(frame_generator, audio_path: Path, dur: float, out_mp
                 pass
     ret = proc.wait()
     if ret != 0 or not out_mp4.exists():
-        raise RuntimeError(f"FFmpeg motion-graphics render failed for {out_mp4.name} (exit={ret})")
+        raise RuntimeError(f"FFmpeg turbo render failed for {out_mp4.name} (exit={ret})")
 
 
-# --- SCENE 1: GENIUS KINETIC HOOK & PRODUCT INTRO ---
+# --- SCENE 1: GENIUS KINETIC HOOK & PRODUCT INTRO (NO COUPON LEAK) ---
 
-def _build_intro_layers(product_name: str, main_result: str, coupon_code: str, bonus_value: str) -> dict:
-    badge = Image.new("RGBA", (800, 62), (0, 0, 0, 0))
+def _build_intro_layers(product_name: str, main_result: str, bonus_value: str) -> dict:
+    badge = Image.new("RGBA", (820, 62), (0, 0, 0, 0))
     bd = ImageDraw.Draw(badge)
-    draw_rrect(bd, (2, 2, 798, 60), radius=30, fill=(220, 38, 38, 240), outline=(254, 202, 202, 230), width=2)
+    draw_rrect(bd, (2, 2, 818, 60), radius=30, fill=(220, 38, 38, 240), outline=(254, 202, 202, 230), width=2)
     b_txt = "WAIT! WATCH BEFORE YOU PAY FULL PRICE  •  HONEST REVIEW"
-    bf = fit_font(bd, b_txt, 740, 22, 16, bold=True)
+    bf = fit_font(bd, b_txt, 760, 22, 16, bold=True)
     bw, bh = text_size(bd, b_txt, bf)
-    bd.text(((800 - bw) // 2, (62 - bh) // 2 - 2), b_txt, font=bf, fill=(255, 255, 255, 255))
+    bd.text(((820 - bw) // 2, (62 - bh) // 2 - 2), b_txt, font=bf, fill=(255, 255, 255, 255))
 
     hero = Image.new("RGBA", (1660, 270), (0, 0, 0, 0))
     hd = ImageDraw.Draw(hero)
@@ -519,7 +530,7 @@ def _build_intro_layers(product_name: str, main_result: str, coupon_code: str, b
         sy += 46
 
     card_specs = [
-        ("ACTIVE DISCOUNT CODE", coupon_code[:14].upper(), "Apply at Checkout for Max Savings", (136, 19, 55, 242), (250, 204, 21, 255), (254, 240, 138, 255)),
+        ("SECRET DISCOUNT COUPON", "UNLOCKED BELOW", "Reveal Active Code on Our Site (1st Link)", (136, 19, 55, 242), (250, 204, 21, 255), (254, 240, 138, 255)),
         ("REAL INSIDE DEMO", "LIVE WALKTHROUGH", "Full Dashboard & Real Output Inside", (23, 37, 84, 242), (56, 189, 248, 255), (125, 211, 252, 255)),
         ("PRIMESITE BONUS VAULT", f"120 BONUSES ({bonus_value})", "6 Collections + Top 8 Power Tools FREE", (30, 41, 59, 246), (245, 158, 11, 255), (253, 224, 71, 255)),
     ]
@@ -543,7 +554,7 @@ def _build_intro_layers(product_name: str, main_result: str, coupon_code: str, b
     cta = Image.new("RGBA", (1580, 74), (0, 0, 0, 0))
     ctad = ImageDraw.Draw(cta)
     draw_rrect(ctad, (2, 2, 1578, 72), radius=18, fill=(15, 23, 42, 238), outline=(59, 130, 246, 230), width=2)
-    cta_txt = f"FIRST LINK IN DESCRIPTION:  FULL REVIEW  •  COUPON [{coupon_code[:14].upper()}]  •  120 BONUSES ({bonus_value} VALUE)"
+    cta_txt = f"FIRST LINK IN DESCRIPTION:  FULL REVIEW  •  REVEAL SECRET COUPON  •  120 BONUSES ({bonus_value})"
     cf = fit_font(ctad, cta_txt, 1520, 25, 17, bold=True)
     twc, thc = text_size(ctad, cta_txt, cf)
     ctad.text(((1580 - twc) // 2, (74 - thc) // 2 - 2), cta_txt, font=cf, fill=(253, 224, 71, 255))
@@ -551,53 +562,60 @@ def _build_intro_layers(product_name: str, main_result: str, coupon_code: str, b
     return {"badge": badge, "hero": hero, "cards": cards, "cta": cta}
 
 
-def render_intro_motion_segment(product_name: str, main_result: str, coupon_code: str, bonus_value: str,
+def render_intro_motion_segment(product_name: str, main_result: str, bonus_value: str,
                                 audio_path: Path, out_mp4: Path, preview_png: Path = None) -> float:
     dur = get_media_duration(audio_path)
-    total_frames = max(30, int(math.ceil(dur * FPS)) + 2)
+    total_frames = max(24, int(math.ceil(dur * FPS)) + 2)
     env = extract_audio_envelope(audio_path, total_frames, FPS)
 
     base = make_studio_background("intro")
-    draw_top_timeline_bar(base, 0, product_name, coupon_code)
-    layers = _build_intro_layers(product_name, main_result, coupon_code, bonus_value)
+    draw_top_timeline_bar(base, 0, product_name, bonus_value)
+    layers = _build_intro_layers(product_name, main_result, bonus_value)
+    card_xs = [115, 695, 1275]
+
+    # Pre-composite final settled frame ONCE (used for ~85% of frames -> 4x faster!)
+    settled = base.copy()
+    sd = ImageDraw.Draw(settled)
+    paste_rgba_alpha(settled, layers["badge"], (550, 118), 1.0)
+    paste_rgba_alpha(settled, layers["hero"], (130, 202), 1.0)
+    sd.rounded_rectangle((W // 2 - 340, 336, W // 2 + 340, 343), radius=3, fill=COL_GOLD)
+    for idx, card_img in enumerate(layers["cards"]):
+        paste_rgba_alpha(settled, card_img, (card_xs[idx], 488), 1.0)
+    paste_rgba_alpha(settled, layers["cta"], (170, 955), 1.0)
 
     def gen():
         for f in range(total_frames):
             t = f / FPS
-            frame = base.copy()
-            d = ImageDraw.Draw(frame)
-
-            p_badge = ease_out_cubic(t / 0.45)
-            paste_rgba_alpha(frame, layers["badge"], (560, int(118 - 35 * (1.0 - p_badge))), p_badge)
-
-            p_hero = ease_out_cubic((t - 0.18) / 0.60)
-            paste_rgba_alpha(frame, layers["hero"], (130, int(202 + 48 * (1.0 - p_hero))), p_hero)
-
-            p_line = ease_out_cubic((t - 0.35) / 0.70)
-            if p_line > 0.01:
-                half_w = int(340 * p_line)
-                d.rounded_rectangle((W // 2 - half_w, 336, W // 2 + half_w, 343), radius=3, fill=COL_GOLD)
-
-            card_xs = [115, 695, 1275]
-            for idx, card_img in enumerate(layers["cards"]):
-                pc = ease_out_cubic((t - (0.65 + idx * 0.28)) / 0.50)
-                if pc > 0.01:
-                    cy = int(488 + 60 * (1.0 - pc))
-                    paste_rgba_alpha(frame, card_img, (card_xs[idx], cy), pc)
-                    if t > 2.2:
-                        active_card = int(((t - 2.2) / max(1.8, (dur - 2.2) / 3.0))) % 3
-                        if active_card == idx:
-                            pulse = 0.55 + 0.45 * math.sin(t * 6.0)
-                            glow_col = (int(245 + 10 * pulse), int(180 + 50 * pulse), int(30 + 50 * pulse))
-                            d.rounded_rectangle((card_xs[idx] + 2, cy + 2, card_xs[idx] + 528, cy + 218), radius=24, outline=glow_col, width=4)
-
-            p_eq = ease_out_cubic((t - 0.40) / 0.50)
-            if p_eq > 0.05:
-                draw_voice_equalizer(d, W // 2, 825, 920, int(110 * p_eq), env[f], t, num_bars=36)
-
-            p_cta = ease_out_cubic((t - 1.05) / 0.55)
-            if p_cta > 0.01:
-                paste_rgba_alpha(frame, layers["cta"], (170, int(955 + 40 * (1.0 - p_cta))), p_cta)
+            if t < 1.85:
+                frame = base.copy()
+                d = ImageDraw.Draw(frame)
+                p_badge = ease_out_cubic(t / 0.45)
+                paste_rgba_alpha(frame, layers["badge"], (550, int(118 - 35 * (1.0 - p_badge))), p_badge)
+                p_hero = ease_out_cubic((t - 0.18) / 0.60)
+                paste_rgba_alpha(frame, layers["hero"], (130, int(202 + 48 * (1.0 - p_hero))), p_hero)
+                p_line = ease_out_cubic((t - 0.35) / 0.70)
+                if p_line > 0.01:
+                    half_w = int(340 * p_line)
+                    d.rounded_rectangle((W // 2 - half_w, 336, W // 2 + half_w, 343), radius=3, fill=COL_GOLD)
+                for idx, card_img in enumerate(layers["cards"]):
+                    pc = ease_out_cubic((t - (0.65 + idx * 0.26)) / 0.48)
+                    if pc > 0.01:
+                        paste_rgba_alpha(frame, card_img, (card_xs[idx], int(488 + 60 * (1.0 - pc))), pc)
+                p_eq = ease_out_cubic((t - 0.40) / 0.50)
+                if p_eq > 0.05:
+                    draw_voice_equalizer(d, W // 2, 825, 920, int(110 * p_eq), env[f], t, num_bars=36)
+                p_cta = ease_out_cubic((t - 1.05) / 0.52)
+                if p_cta > 0.01:
+                    paste_rgba_alpha(frame, layers["cta"], (170, int(955 + 40 * (1.0 - p_cta))), p_cta)
+            else:
+                # TURBO PATH: Single copy + lightweight equalizer & pulsing card border
+                frame = settled.copy()
+                d = ImageDraw.Draw(frame)
+                active_card = int(((t - 1.85) / max(1.8, (dur - 1.85) / 3.0))) % 3
+                pulse = 0.55 + 0.45 * math.sin(t * 6.0)
+                glow_col = (int(245 + 10 * pulse), int(180 + 50 * pulse), int(30 + 50 * pulse))
+                d.rounded_rectangle((card_xs[active_card] + 2, 490, card_xs[active_card] + 528, 706), radius=24, outline=glow_col, width=4)
+                draw_voice_equalizer(d, W // 2, 825, 920, 110, env[f], t, num_bars=36)
 
             if preview_png is not None and f == min(total_frames - 1, int(FPS * 2.5)):
                 frame.save(preview_png, "PNG")
@@ -607,7 +625,7 @@ def render_intro_motion_segment(product_name: str, main_result: str, coupon_code
     return dur
 
 
-# --- SCENE 2: ANIMATED CORE FEATURES SPOTLIGHT ---
+# --- SCENE 2: ANIMATED CORE FEATURES SPOTLIGHT (NO COUPON LEAK + TURBO CACHE) ---
 
 def _build_feature_card(idx: int, text: str, active: bool) -> Image.Image:
     cw, ch = 1230, 198
@@ -642,14 +660,14 @@ def _build_feature_card(idx: int, text: str, active: bool) -> Image.Image:
 
 
 def render_features_motion_segment(product_name: str, main_result: str, features: list,
-                                   coupon_code: str, bonus_value: str, audio_path: Path,
+                                   bonus_value: str, audio_path: Path,
                                    out_mp4: Path, preview_png: Path = None) -> float:
     dur = get_media_duration(audio_path)
-    total_frames = max(30, int(math.ceil(dur * FPS)) + 2)
+    total_frames = max(24, int(math.ceil(dur * FPS)) + 2)
     env = extract_audio_envelope(audio_path, total_frames, FPS)
 
     base = make_studio_background("default")
-    draw_top_timeline_bar(base, 1, product_name, coupon_code)
+    draw_top_timeline_bar(base, 1, product_name, bonus_value)
     bd = ImageDraw.Draw(base)
 
     draw_rrect(bd, (72, 108, 435, 150), radius=10, fill=(37, 99, 235))
@@ -664,19 +682,24 @@ def render_features_motion_segment(product_name: str, main_result: str, features
     rx0, ry0, rx1, ry1 = 1355, 286, 1848, 1018
     draw_rrect(bd, (rx0, ry0, rx1, ry1), radius=26, fill=(15, 23, 42), outline=(245, 158, 11), width=3)
     draw_rrect(bd, (rx0, ry0, rx1, ry0 + 82), radius=26, fill=(136, 19, 55))
-    hdr_c = "EXCLUSIVE LAUNCH DEAL"
+    hdr_c = "SECRET LAUNCH DEAL"
     hf = load_font(26, bold=True)
     hw, _ = text_size(bd, hdr_c, hf)
     bd.text((rx0 + (rx1 - rx0 - hw) // 2, ry0 + 26), hdr_c, font=hf, fill=(254, 205, 211))
 
+    # White Curiosity Box (NO coupon code shown — forces click to site!)
     draw_rrect(bd, (rx0 + 28, ry0 + 108, rx1 - 28, ry0 + 210), radius=16, fill=(255, 255, 255))
-    code_str = coupon_code[:14].upper()
-    cf = fit_font(bd, code_str, rx1 - rx0 - 90, 44, 26, bold=True)
-    cw, ch = text_size(bd, code_str, cf)
-    bd.text((rx0 + (rx1 - rx0 - cw) // 2, ry0 + 159 - ch // 2 - 2), code_str, font=cf, fill=COL_ROSE)
+    c_line1 = "SECRET COUPON"
+    cf1 = load_font(22, bold=True)
+    cw1, _ = text_size(bd, c_line1, cf1)
+    bd.text((rx0 + (rx1 - rx0 - cw1) // 2, ry0 + 122), c_line1, font=cf1, fill=COL_PANEL)
+    c_line2 = "REVEAL IN 1ST LINK ↓"
+    cf2 = fit_font(bd, c_line2, rx1 - rx0 - 80, 32, 22, bold=True)
+    cw2, _ = text_size(bd, c_line2, cf2)
+    bd.text((rx0 + (rx1 - rx0 - cw2) // 2, ry0 + 156), c_line2, font=cf2, fill=COL_ROSE)
 
     perks = [
-        "✔  Max Launch Discount Unlocked",
+        "✔  Active Coupon on Our Site",
         f"✔  120 VIP Bonuses ({bonus_value})",
         "✔  Top 8 Heavy-Hitter Software",
         "✔  Direct OTO Upgrade Breakdown",
@@ -695,13 +718,23 @@ def render_features_motion_segment(product_name: str, main_result: str, features
     bd.text((rx0 + (rx1 - rx0 - bw) // 2, ry1 - 122 - bh // 2 - 1), bcta, font=bf, fill=COL_WHITE)
 
     draw_rrect(bd, (72, 935, 1302, 1018), radius=16, fill=(23, 37, 84), outline=(59, 130, 246), width=2)
-    bbar = f"Full Review + OTO Links + Coupon [{code_str}] + 120 PrimeSite Bonuses Below"
+    bbar = "Full Written Review + OTO Links + Secret Discount Coupon + 120 Bonuses Below"
     bd.text((104, 962), bbar, font=fit_font(bd, bbar, 1180, 26, 18, bold=True), fill=COL_GOLD)
 
     feats = (features + ["High-Speed Automated Workflow", "Commercial License Included", "Cloud Dashboard Access"])[:3]
     cards_inactive = [_build_feature_card(i, feats[i], False) for i in range(3)]
     cards_active = [_build_feature_card(i, feats[i], True) for i in range(3)]
     ys = [286, 502, 718]
+
+    # Pre-composite all 3 settled spotlight states ONCE!
+    state_cache = {}
+    def get_state_frame(active_idx: int) -> Image.Image:
+        if active_idx not in state_cache:
+            fr = base.copy()
+            for idx in range(3):
+                paste_rgba_alpha(fr, cards_active[idx] if idx == active_idx else cards_inactive[idx], (72, ys[idx]), 1.0)
+            state_cache[active_idx] = fr
+        return state_cache[active_idx]
 
     intro_lead = min(4.0, dur * 0.22)
     tail_hold = min(4.2, dur * 0.22)
@@ -710,22 +743,19 @@ def render_features_motion_segment(product_name: str, main_result: str, features
     def gen():
         for f in range(total_frames):
             t = f / FPS
-            frame = base.copy()
-            d = ImageDraw.Draw(frame)
+            active_idx = 0 if t < intro_lead + feat_span else (1 if t < intro_lead + 2.0 * feat_span else 2)
 
-            if t < intro_lead + feat_span:
-                active_idx = 0
-            elif t < intro_lead + 2.0 * feat_span:
-                active_idx = 1
+            if t < 1.15:
+                frame = base.copy()
+                for idx in range(3):
+                    p = ease_out_cubic((t - (0.12 + idx * 0.22)) / 0.42)
+                    if p > 0.01:
+                        paste_rgba_alpha(frame, cards_active[idx] if idx == active_idx else cards_inactive[idx],
+                                         (int(72 - 70 * (1.0 - p)), ys[idx]), p)
             else:
-                active_idx = 2
+                frame = get_state_frame(active_idx).copy()
 
-            for idx in range(3):
-                p = ease_out_cubic((t - (0.15 + idx * 0.24)) / 0.45)
-                if p > 0.01:
-                    paste_rgba_alpha(frame, cards_active[idx] if idx == active_idx else cards_inactive[idx],
-                                     (int(72 - 70 * (1.0 - p)), ys[idx]), p)
-
+            d = ImageDraw.Draw(frame)
             draw_voice_equalizer(d, (rx0 + rx1) // 2, ry1 - 44, 380, 48, env[f], t, num_bars=22)
 
             if preview_png is not None and f == min(total_frames - 1, int(FPS * (intro_lead + feat_span * 1.3))):
@@ -736,16 +766,16 @@ def render_features_motion_segment(product_name: str, main_result: str, features
     return dur
 
 
-# --- SCENE 3: ENTERING LIVE DEMO BROADCAST STINGER ---
+# --- SCENE 3: ENTERING LIVE DEMO BROADCAST STINGER (NO COUPON LEAK) ---
 
-def render_demo_stinger_segment(product_name: str, coupon_code: str, bonus_value: str,
+def render_demo_stinger_segment(product_name: str, bonus_value: str,
                                 audio_path: Path, out_mp4: Path, preview_png: Path = None) -> float:
     dur = get_media_duration(audio_path)
-    total_frames = max(30, int(math.ceil(dur * FPS)) + 2)
+    total_frames = max(24, int(math.ceil(dur * FPS)) + 2)
     env = extract_audio_envelope(audio_path, total_frames, FPS)
 
     base = make_studio_background("demo_stinger")
-    draw_top_timeline_bar(base, 2, product_name, coupon_code)
+    draw_top_timeline_bar(base, 2, product_name, bonus_value)
     bd = ImageDraw.Draw(base)
 
     draw_rrect(bd, (140, 148, 1780, 995), radius=34, fill=(15, 23, 42), outline=(59, 130, 246), width=3)
@@ -763,7 +793,7 @@ def render_demo_stinger_segment(product_name: str, coupon_code: str, bonus_value
     pillars = [
         ("01", "REAL DASHBOARD TOUR", "Zero hype — pure inside screen"),
         ("02", "STEP-BY-STEP WORKFLOW", "See how fast you get results"),
-        ("03", f"120 BONUSES ({bonus_value})", f"Revealed right after demo + [{coupon_code[:10].upper()}]"),
+        ("03", f"120 BONUSES ({bonus_value})", "Plus Secret Coupon in 1st Link Below"),
     ]
     px = 215
     for num, p_head, p_sub in pillars:
@@ -811,16 +841,13 @@ def render_demo_stinger_segment(product_name: str, coupon_code: str, bonus_value
     return dur
 
 
-# --- SCENE 5A: REAL PRIMESITE BONUS VAULT — 6 COLLECTIONS (120 RESOURCES) ---
+# --- SCENE 5A: REAL PRIMESITE BONUS VAULT — 6 COLLECTIONS (TURBO CACHED) ---
 
 def _build_collection_card(num: str, title: str, count_lbl: str, desc: str, highlight: bool) -> Image.Image:
     cw, ch = 635, 224
     c = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
     d = ImageDraw.Draw(c)
-    if highlight:
-        fill_c, out_c, bw = (28, 44, 82, 250), (250, 204, 21, 255), 4
-    else:
-        fill_c, out_c, bw = (18, 28, 52, 240), (71, 85, 105, 210), 2
+    fill_c, out_c, bw = ((28, 44, 82, 250), (250, 204, 21, 255), 4) if highlight else ((18, 28, 52, 240), (71, 85, 105, 210), 2)
     draw_rrect(d, (4, 4, cw - 4, ch - 4), radius=20, fill=fill_c, outline=out_c, width=bw)
 
     draw_rrect(d, (24, 20, 226, 58), radius=10, fill=(37, 99, 235, 255))
@@ -843,18 +870,17 @@ def _build_collection_card(num: str, title: str, count_lbl: str, desc: str, high
     return c
 
 
-def render_primesite_collections_segment(product_name: str, coupon_code: str, bonus_value: str,
+def render_primesite_collections_segment(product_name: str, bonus_value: str,
                                          audio_path: Path, out_mp4: Path,
                                          vault_mode: bool = False, preview_png: Path = None) -> float:
     dur = get_media_duration(audio_path)
-    total_frames = max(30, int(math.ceil(dur * FPS)) + 2)
+    total_frames = max(24, int(math.ceil(dur * FPS)) + 2)
     env = extract_audio_envelope(audio_path, total_frames, FPS)
 
     base = make_studio_background("bonuses")
-    draw_top_timeline_bar(base, 1 if vault_mode else 3, product_name, coupon_code, vault_mode=vault_mode)
+    draw_top_timeline_bar(base, 1 if vault_mode else 3, product_name, bonus_value, vault_mode=vault_mode)
     bd = ImageDraw.Draw(base)
 
-    # Top Banner
     draw_rrect(bd, (64, 102, 1856, 232), radius=24, fill=(20, 31, 58), outline=(245, 158, 11), width=3)
     h1 = (
         "THE PRIMESITE BONUS VAULT — 120 BONUSES IN 6 COLLECTIONS"
@@ -875,7 +901,6 @@ def render_primesite_collections_segment(product_name: str, coupon_code: str, bo
     fw, _ = text_size(bd, "120 RESOURCES FREE", f_free)
     bd.text((1475 + (350 - fw) // 2, 176), "120 RESOURCES FREE", font=f_free, fill=COL_WHITE)
 
-    # Right Sidebar
     sx0, sy0, sx1, sy1 = 1405, 256, 1856, 1026
     draw_rrect(bd, (sx0, sy0, sx1, sy1), radius=24, fill=(15, 23, 42), outline=(245, 158, 11), width=3)
     draw_rrect(bd, (sx0, sy0, sx1, sy0 + 78), radius=24, fill=(30, 58, 138))
@@ -888,7 +913,7 @@ def render_primesite_collections_segment(product_name: str, coupon_code: str, bo
         ("120", "Real Software & Assets"),
         ("6", "Curated Pro Collections"),
         ("TOP 8", "$2,826+ Power Tools First"),
-        ("FREE", "Included With Your Order"),
+        ("FREE", "Claim via 1st Link Below"),
     ]
     ry = sy0 + 102
     for b_s, l_s in highlights:
@@ -906,25 +931,29 @@ def render_primesite_collections_segment(product_name: str, coupon_code: str, bo
     taf = fit_font(bd, t_auto, sx1 - sx0 - 70, 22, 16, bold=True)
     taw, _ = text_size(bd, t_auto, taf)
     bd.text((sx0 + (sx1 - sx0 - taw) // 2, sy1 - 204), t_auto, font=taf, fill=(254, 205, 211))
-
     t_sub = "Search, Filter & Download Anytime"
     tsf = fit_font(bd, t_sub, sx1 - sx0 - 70, 19, 14, bold=False)
     tsw, _ = text_size(bd, t_sub, tsf)
     bd.text((sx0 + (sx1 - sx0 - tsw) // 2, sy1 - 166), t_sub, font=tsf, fill=COL_WHITE)
-
     draw_rrect(bd, (sx0 + 44, sy1 - 134, sx1 - 44, sy1 - 106), radius=8, fill=COL_WHITE)
     t_btn = "OTOSLINKS.COM VIP VAULT"
     tbf = fit_font(bd, t_btn, sx1 - sx0 - 110, 17, 13, bold=True)
     tbw, _ = text_size(bd, t_btn, tbf)
     bd.text((sx0 + (sx1 - sx0 - tbw) // 2, sy1 - 129), t_btn, font=tbf, fill=COL_ROSE)
 
-    coords = [
-        (64, 256), (734, 256),
-        (64, 514), (734, 514),
-        (64, 772), (734, 772),
-    ]
+    coords = [(64, 256), (734, 256), (64, 514), (734, 514), (64, 772), (734, 772)]
     cards_norm = [_build_collection_card(*col, False) for col in PRIMESITE_COLLECTIONS]
     cards_hi = [_build_collection_card(*col, True) for col in PRIMESITE_COLLECTIONS]
+
+    # TURBO STATE CACHE: Composite each highlight state ONCE!
+    state_cache = {}
+    def get_state_frame(hi_idx: int) -> Image.Image:
+        if hi_idx not in state_cache:
+            fr = base.copy()
+            for idx, (cx, cy) in enumerate(coords):
+                paste_rgba_alpha(fr, cards_hi[idx] if idx == hi_idx else cards_norm[idx], (cx, cy), 1.0)
+            state_cache[hi_idx] = fr
+        return state_cache[hi_idx]
 
     lead_in = min(3.0, dur * 0.16)
     tail_out = min(2.8, dur * 0.14)
@@ -933,16 +962,18 @@ def render_primesite_collections_segment(product_name: str, coupon_code: str, bo
     def gen():
         for f in range(total_frames):
             t = f / FPS
-            frame = base.copy()
-            d = ImageDraw.Draw(frame)
-
             hi_idx = -1 if t < lead_in else min(5, int((t - lead_in) / slot))
-            for idx, (cx, cy) in enumerate(coords):
-                p = ease_out_cubic((t - (0.12 + idx * 0.16)) / 0.40)
-                if p > 0.01:
-                    paste_rgba_alpha(frame, cards_hi[idx] if idx == hi_idx else cards_norm[idx],
-                                     (cx, int(cy + 34 * (1.0 - p))), p)
+            if t < 1.38:
+                frame = base.copy()
+                for idx, (cx, cy) in enumerate(coords):
+                    p = ease_out_cubic((t - (0.10 + idx * 0.15)) / 0.38)
+                    if p > 0.01:
+                        paste_rgba_alpha(frame, cards_hi[idx] if idx == hi_idx else cards_norm[idx],
+                                         (cx, int(cy + 34 * (1.0 - p))), p)
+            else:
+                frame = get_state_frame(hi_idx).copy()
 
+            d = ImageDraw.Draw(frame)
             draw_voice_equalizer(d, (sx0 + sx1) // 2, sy1 - 46, 360, 48, env[f], t, num_bars=20)
             if preview_png is not None and f == min(total_frames - 1, int(FPS * (lead_in + slot * 2.5))):
                 frame.save(preview_png, "PNG")
@@ -952,20 +983,15 @@ def render_primesite_collections_segment(product_name: str, coupon_code: str, bo
     return dur
 
 
-# --- SCENE 5B: TOP 8 HEAVY-HITTER POWER BONUSES ($2,826+ VALUE ALONE) ---
+# --- SCENE 5B: TOP 8 HEAVY-HITTER POWER BONUSES (TURBO CACHED — 4X FASTER!) ---
 
 def _build_power8_card(rank: str, title: str, fmt: str, val_str: str, desc: str, highlight: bool) -> Image.Image:
     cw, ch = 428, 326
     c = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
     d = ImageDraw.Draw(c)
-    if highlight:
-        fill_c, out_c, bw = (28, 44, 82, 252), (250, 204, 21, 255), 4
-    else:
-        fill_c, out_c, bw = (16, 26, 48, 242), (59, 130, 246, 165), 2
-
+    fill_c, out_c, bw = ((28, 44, 82, 252), (250, 204, 21, 255), 4) if highlight else ((16, 26, 48, 242), (59, 130, 246, 165), 2)
     draw_rrect(d, (4, 4, cw - 4, ch - 4), radius=22, fill=fill_c, outline=out_c, width=bw)
 
-    # Top Row: Rank Badge + Format Tag
     draw_rrect(d, (22, 20, 152, 56), radius=10, fill=(245, 158, 11, 255) if highlight else (37, 99, 235, 255))
     rk_txt = f"★ TOP {rank}"
     rkf = load_font(18, bold=True)
@@ -977,32 +1003,26 @@ def _build_power8_card(rank: str, title: str, fmt: str, val_str: str, desc: str,
     fw, _ = text_size(d, fmt.upper(), ff)
     d.text((cw - 154 + (132 - fw) // 2, 29), fmt.upper(), font=ff, fill=(186, 230, 253, 255))
 
-    # Title (up to 2 lines)
     tf = load_font(27, bold=True)
-    t_lines = wrap_text_px(d, title, tf, cw - 44, max_lines=2)
     ty = 76
-    for ln in t_lines:
+    for ln in wrap_text_px(d, title, tf, cw - 44, max_lines=2):
         d.text((22, ty), ln, font=tf, fill=(255, 255, 255, 255))
         ty += 34
 
-    # Description (up to 2 lines)
     df = load_font(20, bold=False)
-    d_lines = wrap_text_px(d, desc, df, cw - 44, max_lines=2)
     dy = 158
-    for ln in d_lines:
+    for ln in wrap_text_px(d, desc, df, cw - 44, max_lines=2):
         d.text((22, dy), ln, font=df, fill=(186, 204, 226, 240))
         dy += 28
 
-    # Bottom Value Strip: Crossed-out Dollar Value -> FREE TODAY
-    draw_rrect(d, (20, 236, cw - 20, ch - 20), radius=14, fill=(15, 23, 42, 245), outline=(250, 204, 21, 180) if highlight else (51, 65, 85, 200), width=2)
+    draw_rrect(d, (20, 236, cw - 20, ch - 20), radius=14, fill=(15, 23, 42, 245),
+               outline=(250, 204, 21, 180) if highlight else (51, 65, 85, 200), width=2)
     if val_str != "VIP":
         v_lbl = f"Value: {val_str}"
         vf = load_font(21, bold=True)
         vw, vh = text_size(d, v_lbl, vf)
-        vx, vy = 38, 260
-        d.text((vx, vy), v_lbl, font=vf, fill=(148, 163, 184, 230))
-        # Red strikethrough line over price
-        d.line([(vx + 72, vy + vh // 2 + 2), (vx + vw + 4, vy + vh // 2 + 2)], fill=(239, 68, 68, 255), width=3)
+        d.text((38, 260), v_lbl, font=vf, fill=(148, 163, 184, 230))
+        d.line([(110, 260 + vh // 2 + 2), (38 + vw + 4, 260 + vh // 2 + 2)], fill=(239, 68, 68, 255), width=3)
     else:
         d.text((38, 260), "VIP Pack", font=load_font(21, bold=True), fill=(148, 163, 184, 230))
 
@@ -1010,35 +1030,53 @@ def _build_power8_card(rank: str, title: str, fmt: str, val_str: str, desc: str,
     frf = load_font(20, bold=True)
     frw, _ = text_size(d, "FREE ✓", frf)
     d.text((cw - 178 + (146 - frw) // 2, 261), "FREE ✓", font=frf, fill=(255, 255, 255, 255))
-
     return c
 
 
-def render_primesite_top8_segment(product_name: str, coupon_code: str, bonus_value: str,
+def render_primesite_top8_segment(product_name: str, bonus_value: str,
                                   audio_path: Path, out_mp4: Path,
                                   vault_mode: bool = False, preview_png: Path = None) -> float:
     dur = get_media_duration(audio_path)
-    total_frames = max(30, int(math.ceil(dur * FPS)) + 2)
+    total_frames = max(24, int(math.ceil(dur * FPS)) + 2)
     env = extract_audio_envelope(audio_path, total_frames, FPS)
 
     base = make_studio_background("power8")
-    draw_top_timeline_bar(base, 2 if vault_mode else 3, product_name, coupon_code, vault_mode=vault_mode)
+    draw_top_timeline_bar(base, 2 if vault_mode else 3, product_name, bonus_value, vault_mode=vault_mode)
     bd = ImageDraw.Draw(base)
 
-    # Top Spotlight Header
     draw_rrect(bd, (64, 100, 1856, 206), radius=22, fill=(20, 31, 58), outline=(250, 204, 21), width=3)
     h1 = "EXECUTIVE POWER SPOTLIGHT — TOP 8 HEAVY-HITTER BONUSES ($2,826+ VALUE ALONE)"
     bd.text((96, 116), h1, font=fit_font(bd, h1, 1730, 35, 22, bold=True), fill=COL_GOLD)
     h2 = f"Real WordPress plugins, SEO & cloning software, 300 logos & 100 DFY prompts — plus 112 more tools inside the {bonus_value} Vault!"
     bd.text((96, 162), h2, font=fit_font(bd, h2, 1730, 22, 16, bold=False), fill=(226, 232, 240))
 
-    # 4 columns x 2 rows grid
+    # Draw static bottom broadcast strip onto base ONCE
+    draw_rrect(bd, (64, 938, 1856, 1038), radius=18, fill=(15, 23, 42), outline=(59, 130, 246), width=2)
+    bt = (
+        "EXPLORE ALL 120 BONUSES FREE  •  OTOSLINKS.COM VIP VAULT  •  FIRST LINK BELOW"
+        if vault_mode
+        else "ALL 8 POWER TOOLS + 112 MORE BONUSES FREE  •  REVEAL SECRET COUPON IN 1ST LINK BELOW"
+    )
+    bf = fit_font(bd, bt, 1340, 25, 17, bold=True)
+    _, bth = text_size(bd, bt, bf)
+    bd.text((98, 988 - bth // 2 - 1), bt, font=bf, fill=COL_GOLD)
+
     xs = [64, 518, 972, 1426]
     ys = [232, 582]
     coords = [(xs[i % 4], ys[i // 4]) for i in range(8)]
 
     cards_norm = [_build_power8_card(*item, False) for item in PRIMESITE_TOP8_POWER_BONUSES]
     cards_hi = [_build_power8_card(*item, True) for item in PRIMESITE_TOP8_POWER_BONUSES]
+
+    # TURBO STATE CACHE: Eliminates 8 full RGBA composites per frame -> 4x faster!
+    state_cache = {}
+    def get_state_frame(hi_idx: int) -> Image.Image:
+        if hi_idx not in state_cache:
+            fr = base.copy()
+            for idx, (cx, cy) in enumerate(coords):
+                paste_rgba_alpha(fr, cards_hi[idx] if idx == hi_idx else cards_norm[idx], (cx, cy), 1.0)
+            state_cache[hi_idx] = fr
+        return state_cache[hi_idx]
 
     lead_in = min(2.2, dur * 0.12)
     tail_out = min(2.2, dur * 0.12)
@@ -1047,29 +1085,19 @@ def render_primesite_top8_segment(product_name: str, coupon_code: str, bonus_val
     def gen():
         for f in range(total_frames):
             t = f / FPS
-            frame = base.copy()
-            d = ImageDraw.Draw(frame)
-
             hi_idx = -1 if t < lead_in else min(7, int((t - lead_in) / slot))
-            for idx, (cx, cy) in enumerate(coords):
-                p = ease_out_cubic((t - (0.08 + idx * 0.11)) / 0.36)
-                if p > 0.01:
-                    paste_rgba_alpha(frame, cards_hi[idx] if idx == hi_idx else cards_norm[idx],
-                                     (cx, int(cy + 28 * (1.0 - p))), p)
+            if t < 1.25:
+                frame = base.copy()
+                for idx, (cx, cy) in enumerate(coords):
+                    p = ease_out_cubic((t - (0.06 + idx * 0.10)) / 0.34)
+                    if p > 0.01:
+                        paste_rgba_alpha(frame, cards_hi[idx] if idx == hi_idx else cards_norm[idx],
+                                         (cx, int(cy + 28 * (1.0 - p))), p)
+            else:
+                frame = get_state_frame(hi_idx).copy()
 
-            # Bottom sleek broadcast strip + mini voice equalizer
-            draw_rrect(d, (64, 938, 1856, 1038), radius=18, fill=(15, 23, 42), outline=(59, 130, 246), width=2)
-            bt = (
-                "EXPLORE ALL 120 BONUSES FREE  •  OTOSLINKS.COM VIP VAULT  •  FIRST LINK BELOW"
-                if vault_mode
-                else f"ALL 8 POWER TOOLS + 112 MORE BONUSES FREE  •  COUPON [{coupon_code[:14].upper()}]  •  1ST LINK BELOW"
-            )
-            bf = fit_font(d, bt, 1280, 26, 18, bold=True)
-            _, bth = text_size(d, bt, bf)
-            d.text((98, 988 - bth // 2 - 1), bt, font=bf, fill=COL_GOLD)
-
+            d = ImageDraw.Draw(frame)
             draw_voice_equalizer(d, 1650, 988, 340, 56, env[f], t, num_bars=20)
-
             if preview_png is not None and f == min(total_frames - 1, int(FPS * (lead_in + slot * 3.5))):
                 frame.save(preview_png, "PNG")
             yield frame.tobytes()
@@ -1078,17 +1106,17 @@ def render_primesite_top8_segment(product_name: str, coupon_code: str, bonus_val
     return dur
 
 
-# --- SCENE 6: FINAL VERDICT & ANIMATED CTA OUTRO ---
+# --- SCENE 6: FINAL VERDICT & ANIMATED CTA OUTRO (NO COUPON LEAK) ---
 
-def render_outro_motion_segment(product_name: str, coupon_code: str, bonus_value: str,
+def render_outro_motion_segment(product_name: str, bonus_value: str,
                                 audio_path: Path, out_mp4: Path,
                                 vault_mode: bool = False, preview_png: Path = None) -> float:
     dur = get_media_duration(audio_path)
-    total_frames = max(30, int(math.ceil(dur * FPS)) + 2)
+    total_frames = max(24, int(math.ceil(dur * FPS)) + 2)
     env = extract_audio_envelope(audio_path, total_frames, FPS)
 
     base = make_studio_background("outro")
-    draw_top_timeline_bar(base, 4, product_name, coupon_code, vault_mode=vault_mode)
+    draw_top_timeline_bar(base, 4, product_name, bonus_value, vault_mode=vault_mode)
     bd = ImageDraw.Draw(base)
 
     draw_rrect(bd, (96, 120, 1824, 920), radius=32, fill=(15, 23, 42), outline=(245, 158, 11), width=3)
@@ -1110,7 +1138,7 @@ def render_outro_motion_segment(product_name: str, coupon_code: str, bonus_value
     h2 = (
         "Instant access to all 6 collections + Top 8 Heavy-Hitter software tools — 100% free with any order through our link."
         if vault_mode
-        else f"Lock in launch pricing + the complete {bonus_value} PrimeSite Bonus Vault before the early-bird deal closes."
+        else f"Visit our review page below to reveal your secret coupon + unlock the {bonus_value} PrimeSite Bonus Vault."
     )
     bd.text((148, 322), h2, font=fit_font(bd, h2, 1610, 27, 18, bold=False), fill=COL_GOLD)
 
@@ -1120,13 +1148,13 @@ def render_outro_motion_segment(product_name: str, coupon_code: str, bonus_value
     steps = (
         [
             ("1", "Pick up any featured software through our official review link."),
-            ("2", "Complete checkout on the vendor's secure page (apply coupon if available)."),
+            ("2", "Complete checkout on the vendor's secure page using our site deal."),
             ("3", "Receive instant access to all 120 PrimeSite Bonuses inside your receipt!"),
         ]
         if vault_mode
         else [
-            ("1", "Click the First Link in the Description right below this video."),
-            ("2", f"Apply Secret Coupon [{coupon_code[:14].upper()}] on the official checkout page."),
+            ("1", "Click the First Link in the Description to open our full review page."),
+            ("2", "Reveal our active secret discount coupon & grab the launch deal."),
             ("3", f"Unlock {product_name[:22]} + all 120 PrimeSite Bonuses instantly!"),
         ]
     )
@@ -1137,15 +1165,16 @@ def render_outro_motion_segment(product_name: str, coupon_code: str, bonus_value
         bd.text((262, sy + 11), txt, font=fit_font(bd, txt, 920, 26, 17, bold=True), fill=(241, 245, 249))
         sy += 88
 
+    # Right Curiosity Ticket (NO raw coupon code shown!)
     draw_rrect(bd, (1255, 392, 1772, 780), radius=24, fill=(136, 19, 55), outline=(250, 204, 21), width=3)
-    top_t = "TOTAL VAULT VALUE" if vault_mode else "ACTIVE SECRET COUPON"
-    ttf = load_font(26, bold=True)
+    top_t = "TOTAL VAULT VALUE" if vault_mode else "SECRET DISCOUNT COUPON"
+    ttf = fit_font(bd, top_t, 460, 26, 20, bold=True)
     ttw, _ = text_size(bd, top_t, ttf)
     bd.text((1255 + (517 - ttw) // 2, 428), top_t, font=ttf, fill=(254, 205, 211))
 
     draw_rrect(bd, (1292, 488, 1735, 608), radius=18, fill=COL_WHITE)
-    c_str = f"{bonus_value}" if vault_mode else coupon_code[:14].upper()
-    cf = fit_font(bd, c_str, 410, 50, 28, bold=True)
+    c_str = f"{bonus_value}" if vault_mode else "1ST LINK BELOW ↓"
+    cf = fit_font(bd, c_str, 410, 44, 26, bold=True)
     cw, ch = text_size(bd, c_str, cf)
     bd.text((1292 + (443 - cw) // 2, 548 - ch // 2 - 2), c_str, font=cf, fill=COL_ROSE)
 
@@ -1154,10 +1183,18 @@ def render_outro_motion_segment(product_name: str, coupon_code: str, bonus_value
     sw1, _ = text_size(bd, b_sub1, sf1)
     bd.text((1255 + (517 - sw1) // 2, 640), b_sub1, font=sf1, fill=COL_GOLD)
 
-    b_sub2 = "Yours 100% FREE at Checkout"
-    sf2 = load_font(22, bold=False)
+    b_sub2 = "Yours 100% FREE at Checkout" if vault_mode else "Reveal Active Code on Our Site"
+    sf2 = fit_font(bd, b_sub2, 460, 22, 16, bold=False)
     sw2, _ = text_size(bd, b_sub2, sf2)
     bd.text((1255 + (517 - sw2) // 2, 688), b_sub2, font=sf2, fill=COL_WHITE)
+
+    cta_str = (
+        "▼   BROWSE ALL 120 BONUSES ON THIS PAGE & CLAIM FREE WITH YOUR ORDER   ▼"
+        if vault_mode
+        else "▼   CLICK THE FIRST LINK BELOW TO UNLOCK SECRET COUPON & 120 BONUSES   ▼"
+    )
+    cf2 = fit_font(bd, cta_str, 1440, 28, 18, bold=True)
+    cw2, ch2 = text_size(bd, cta_str, cf2)
 
     def gen():
         for f in range(total_frames):
@@ -1170,13 +1207,6 @@ def render_outro_motion_segment(product_name: str, coupon_code: str, bonus_value
             bounce = int(9.0 * abs(math.sin(t * 5.2)))
             by0, by1 = 946 + bounce, 1036 + bounce
             draw_rrect(d, (210, by0, 1710, by1), radius=20, fill=(220, 38, 38), outline=(250, 204, 21), width=3)
-            cta_str = (
-                "▼   BROWSE ALL 120 BONUSES ON THIS PAGE & CLAIM FREE WITH YOUR ORDER   ▼"
-                if vault_mode
-                else f"▼   CLICK THE FIRST LINK IN THE DESCRIPTION NOW  |  CODE: {coupon_code[:14].upper()}   ▼"
-            )
-            cf2 = fit_font(d, cta_str, 1440, 29, 19, bold=True)
-            cw2, ch2 = text_size(d, cta_str, cf2)
             d.text(((W - cw2) // 2, (by0 + by1) // 2 - ch2 // 2 - 2), cta_str, font=cf2, fill=COL_WHITE)
 
             if preview_png is not None and f == min(total_frames - 1, int(FPS * 2.0)):
@@ -1188,10 +1218,10 @@ def render_outro_motion_segment(product_name: str, coupon_code: str, bonus_value
 
 
 # ==============================================================================
-# SLEEK DEMO OVERLAY & 100% FACELESS HIGH-CTR YOUTUBE THUMBNAIL
+# SLEEK DEMO OVERLAY & 100% FACELESS HIGH-CTR YOUTUBE THUMBNAIL (NO COUPON LEAK)
 # ==============================================================================
 
-def create_demo_overlay_png(out_path: Path, product_name: str, coupon_code: str, bonus_value: str):
+def create_demo_overlay_png(out_path: Path, product_name: str, bonus_value: str):
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
@@ -1204,7 +1234,7 @@ def create_demo_overlay_png(out_path: Path, product_name: str, coupon_code: str,
     draw.text((px0 + 44, 36), top_txt, font=tf, fill=(248, 250, 252, 245))
 
     draw_rrect(draw, (140, 1008, 1780, 1066), radius=14, fill=(10, 16, 32, 232), outline=(245, 158, 11, 245), width=2)
-    bar_txt = f"GRAB {product_name[:22].upper()}  +  COUPON [{coupon_code[:14].upper()}]  +  120 BONUSES ({bonus_value})   ▸   1ST LINK BELOW"
+    bar_txt = f"GRAB {product_name[:22].upper()}  +  SECRET DISCOUNT COUPON  +  120 BONUSES ({bonus_value})   ▸   1ST LINK BELOW"
     bf = fit_font(draw, bar_txt, 1580, 24, 17, bold=True)
     bw, bh = text_size(draw, bar_txt, bf)
     draw.text(((W - bw) // 2, 1037 - bh // 2 - 1), bar_txt, font=bf, fill=(253, 224, 71, 255))
@@ -1212,7 +1242,7 @@ def create_demo_overlay_png(out_path: Path, product_name: str, coupon_code: str,
     overlay.save(out_path, "PNG")
 
 
-def create_faceless_youtube_thumbnail(out_path: Path, product_name: str, coupon_code: str, bonus_value: str):
+def create_faceless_youtube_thumbnail(out_path: Path, product_name: str, bonus_value: str):
     TW, TH = 1280, 720
     bg = make_studio_background("intro").resize((TW, TH), Image.Resampling.LANCZOS).convert("RGBA")
     overlay = Image.new("RGBA", (TW, TH), (0, 0, 0, 0))
@@ -1267,18 +1297,18 @@ def create_faceless_youtube_thumbnail(out_path: Path, product_name: str, coupon_
         draw.text((44, ny), ln, font=pf, fill=(255, 255, 255, 255))
         ny += 94
 
-    # Auto-fitted FULL DEMO + OTOs badge (guaranteed zero overflow)
     draw_rrect(draw, (44, 355, 675, 470), radius=20, fill=(37, 99, 235, 255), outline=(147, 197, 253, 255), width=3)
     d_lbl = "FULL DEMO + OTOs"
     df_b = fit_font(draw, d_lbl, 580, 52, 34, bold=True)
     dw_b, dh_b = text_size(draw, d_lbl, df_b)
     draw.text((44 + (631 - dw_b) // 2, 412 - dh_b // 2 - 2), d_lbl, font=df_b, fill=(255, 255, 255, 255))
 
+    # Curiosity Coupon Box (NO raw coupon text — drives site clicks!)
     draw_rrect(draw, (44, 502, 675, 664), radius=20, fill=(255, 255, 255, 255), outline=(250, 204, 21, 255), width=5)
     draw.text((74, 520), "SECRET DISCOUNT COUPON:", font=load_font(28, bold=True), fill=(15, 23, 42, 255))
-    c_txt = coupon_code[:14].upper()
-    cf = fit_font(draw, c_txt, 580, 64, 36, bold=True)
-    draw.text((74, 566), c_txt, font=cf, fill=(225, 29, 72, 255))
+    c_txt = "UNLOCK IN 1ST LINK ↓"
+    cf = fit_font(draw, c_txt, 580, 52, 34, bold=True)
+    draw.text((74, 574), c_txt, font=cf, fill=(225, 29, 72, 255))
 
     Image.alpha_composite(bg, overlay).convert("RGB").save(out_path, "JPEG", quality=95)
 
@@ -1568,12 +1598,13 @@ def download_or_build_demo(demo_url: str, raw_demo_path: Path, fallback_slide: P
         "ffmpeg", "-y", "-loop", "1", "-framerate", str(FPS), "-i", str(fallback_slide),
         "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100", "-t", "8",
         "-vf", f"scale={W}:{H},setsar=1,fps={FPS},format=yuv420p",
-        "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+        *UNIFIED_H264_FLAGS,
         "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2", str(raw_demo_path)
     ], check=True)
 
 
 def process_demo_break_fingerprint(raw_demo: Path, overlay_png: Path, out_demo: Path) -> float:
+    """Applies fingerprint break + overlay with exact unified H.264/AAC spec for instant -c copy concat."""
     v_filter = (
         f"[0:v]scale={W}:{H}:force_original_aspect_ratio=decrease,"
         f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={FPS},"
@@ -1586,7 +1617,7 @@ def process_demo_break_fingerprint(raw_demo: Path, overlay_png: Path, out_demo: 
             "ffmpeg", "-y", "-i", str(raw_demo), "-i", str(overlay_png),
             "-filter_complex", f"{v_filter};[0:a]atempo=1.01,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[outa]",
             "-map", "[outv]", "-map", "[outa]",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+            *UNIFIED_H264_FLAGS,
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
             "-map_metadata", "-1", str(out_demo)
         ]
@@ -1596,7 +1627,7 @@ def process_demo_break_fingerprint(raw_demo: Path, overlay_png: Path, out_demo: 
             "ffmpeg", "-y", "-i", str(raw_demo), "-i", str(overlay_png),
             "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100", "-t", f"{dur:.2f}",
             "-filter_complex", v_filter, "-map", "[outv]", "-map", "2:a:0",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+            *UNIFIED_H264_FLAGS,
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
             "-map_metadata", "-1", str(out_demo)
         ]
@@ -1604,15 +1635,26 @@ def process_demo_break_fingerprint(raw_demo: Path, overlay_png: Path, out_demo: 
     return get_media_duration(out_demo)
 
 
-def concat_segments(segments: list, out_mp4: Path):
+def concat_segments_turbo(segments: list, out_mp4: Path):
+    """Instant zero-reencode stream-copy concatenation (<1s) with automatic safe fallback."""
     concat_txt = WORK_DIR / f"concat_{out_mp4.stem}.txt"
     with open(concat_txt, "w", encoding="utf-8") as f:
         for seg in segments:
             f.write(f"file '{seg.resolve().as_posix()}'\n")
+
+    print(f"[CONCAT] Instant stream-copy merge -> {out_mp4.name} ...")
+    res = subprocess.run([
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_txt),
+        "-c", "copy", "-movflags", "+faststart", str(out_mp4)
+    ])
+    if res.returncode == 0 and has_video_stream(out_mp4):
+        return
+
+    print("[CONCAT] Stream-copy fallback -> fast unified re-encode...")
     subprocess.run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_txt),
         "-vf", f"fps={FPS},format=yuv420p,setsar=1", "-af", "aresample=44100",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        *UNIFIED_H264_FLAGS,
         "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
         "-movflags", "+faststart", str(out_mp4)
     ], check=True)
@@ -1626,19 +1668,20 @@ def fmt_ts(seconds: float) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="OTOsLinks Automated Video Factory v6 (Faceless + PrimeSite $24K Vault)")
+    parser = argparse.ArgumentParser(description="OTOsLinks Automated Video Factory v6.1 TURBO (No-Coupon-Leak CRO)")
     parser.add_argument("--product_name", default=os.getenv("PRODUCT_NAME", "AI Secret Image Codebook"))
     parser.add_argument("--main_result", default=os.getenv("MAIN_RESULT", "generate studio-grade commercial graphics using secret style parameters"))
     parser.add_argument("--feature_1", default=os.getenv("FEATURE_1", "Secret Style Reference Matrix & Optical Camera Lighting Tokens"))
     parser.add_argument("--feature_2", default=os.getenv("FEATURE_2", "Multi-Scene Character Consistency Lock & Crisp Typography Syntax"))
     parser.add_argument("--feature_3", default=os.getenv("FEATURE_3", "Print-On-Demand Vector Isolation & Commercial Product Mockup Codes"))
-    parser.add_argument("--coupon_code", default=os.getenv("COUPON_CODE", "CODEBOOKVIP"))
+    # Accepted for backward compatibility with Make.com payloads, intentionally NEVER shown/spoken on video
+    parser.add_argument("--coupon_code", default=os.getenv("COUPON_CODE", ""))
     parser.add_argument("--bonus_value", default=os.getenv("BONUS_VALUE", "$24,000+"))
     parser.add_argument("--bonus_page_url", default=os.getenv("BONUS_PAGE_URL", "https://otoslinks.com/vip-hot-bonuses-value-24k/"))
     parser.add_argument("--demo_url", default=os.getenv("DEMO_URL", ""))
     parser.add_argument("--affiliate_link", default=os.getenv("AFFILIATE_LINK", "https://otoslinks.com/"))
     parser.add_argument("--voice", default=os.getenv("VOICE_NAME", "en-US-GuyNeural"))
-    parser.add_argument("--build_standalone_vault", default=os.getenv("BUILD_STANDALONE_VAULT", "true"))
+    parser.add_argument("--build_standalone_vault", default=os.getenv("BUILD_STANDALONE_VAULT", "false"))
     args = parser.parse_args()
 
     if WORK_DIR.exists():
@@ -1646,20 +1689,20 @@ def main():
     WORK_DIR.mkdir(parents=True, exist_ok=True)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. High-Converting Faceless Scripts (Product -> Features -> Demo -> Real 120-Bonus PrimeSite Vault -> CTA)
+    # 1. High-Converting Faceless Scripts (ZERO coupon code leak -> forces clicks to user's website!)
     script_seg1 = (
         f"Wait—before you pay full price for {args.product_name}, watch this quick review first! "
         f"Built to help you {args.main_result}, I am about to cover its top core features, "
-        f"take you straight inside the real live demo, and unlock secret coupon code {args.coupon_code} "
-        f"plus our complete PrimeSite Vault of 120 exclusive bonuses worth over {args.bonus_value}—all waiting in the first link below."
+        f"take you straight inside the real live demo, and show you how to unlock our active secret discount coupon "
+        f"plus our complete PrimeSite Vault of 120 exclusive bonuses worth over {args.bonus_value}—all waiting on our review page in the first link below."
     )
     script_seg2 = (
         f"Let us look at the core features that make {args.product_name} stand out without coding or monthly fees. "
         f"First, you get {args.feature_1}. "
         f"Second, it delivers {args.feature_2}. "
         f"And third, you unlock {args.feature_3}. "
-        f"Down in the first link below, you will find our full written review, every O-T-O upgrade breakdown, "
-        f"discount code {args.coupon_code}, and the entire 120-bonus PrimeSite Vault."
+        "Down in the first link below, visit our full written review to reveal your active secret discount coupon, "
+        "see every O-T-O upgrade breakdown, and claim the entire 120-bonus PrimeSite Vault."
     )
     script_seg3 = (
         f"Now let us skip the hype and jump straight inside {args.product_name} for the real live demo! "
@@ -1667,7 +1710,7 @@ def main():
     )
     script_seg4_collections = (
         f"Now that you have seen {args.product_name} in action, here is what you unlock completely free inside the PrimeSite Bonus Vault "
-        f"worth over {args.bonus_value} when you grab it through the first link below. "
+        f"worth over {args.bonus_value} when you grab it through our review page in the first link below. "
         "You get 120 real resources organized into 6 curated collections: "
         "13 WordPress plugins and sales-page themes, 14 automation software tools and store builders, "
         "17 ready-made graphics, video, and research assets, 19 business blueprints with resell-rights training, "
@@ -1681,8 +1724,8 @@ def main():
     )
     script_seg5_outro = (
         f"That wraps up our honest review and live demo of {args.product_name}. "
-        f"Click the first link in the description right now, apply secret coupon {args.coupon_code} at checkout, "
-        f"and unlock all 120 PrimeSite Bonuses before this launch deal expires. Thanks for watching, and see you inside!"
+        "Click the first link in the description right now to visit our official review page, reveal your active secret discount coupon, "
+        "and lock in all 120 PrimeSite Bonuses before this launch deal expires. Thanks for watching, and see you inside!"
     )
     script_vault_outro = (
         f"Every single one of these 120 resources—organized into 6 searchable collections worth over {args.bonus_value}—"
@@ -1727,15 +1770,15 @@ def main():
     if do_standalone:
         mix_voice_with_studio_bed(av_r, av, with_chime=True)
 
-    # 4. Generate Sleek Demo Overlay & 100% Faceless High-CTR Thumbnail
+    # 4. Generate Sleek Demo Overlay & 100% Faceless High-CTR Thumbnail (NO coupon leak!)
     demo_overlay = WORK_DIR / "demo_overlay.png"
     thumb_path = OUT_DIR / "youtube_thumbnail.jpg"
     fallback_demo_img = WORK_DIR / "fallback_demo_slide.png"
 
-    create_demo_overlay_png(demo_overlay, args.product_name, args.coupon_code, args.bonus_value)
-    create_faceless_youtube_thumbnail(thumb_path, args.product_name, args.coupon_code, args.bonus_value)
+    create_demo_overlay_png(demo_overlay, args.product_name, args.bonus_value)
+    create_faceless_youtube_thumbnail(thumb_path, args.product_name, args.bonus_value)
 
-    # 5. Render All 7 Motion-Graphics Segments (1080p @ 30 FPS)
+    # 5. Render All 7 Motion-Graphics Segments (TURBO 1080p @ 24 FPS)
     v1 = WORK_DIR / "seg1_intro.mp4"
     v2 = WORK_DIR / "seg2_features.mp4"
     v3 = WORK_DIR / "seg3_stinger.mp4"
@@ -1744,48 +1787,48 @@ def main():
     v4b = WORK_DIR / "seg5b_vault_top8.mp4"
     v5 = WORK_DIR / "seg6_outro.mp4"
 
-    print("[RENDER] 1/7 Rendering Genius Kinetic Product Intro...")
-    d1 = render_intro_motion_segment(args.product_name, args.main_result, args.coupon_code, args.bonus_value, a1, v1)
+    print("[TURBO] 1/7 Rendering Genius Kinetic Product Intro...")
+    d1 = render_intro_motion_segment(args.product_name, args.main_result, args.bonus_value, a1, v1)
 
-    print("[RENDER] 2/7 Rendering Animated Core Features Spotlight...")
+    print("[TURBO] 2/7 Rendering Animated Core Features Spotlight...")
     d2 = render_features_motion_segment(
         args.product_name, args.main_result, [args.feature_1, args.feature_2, args.feature_3],
-        args.coupon_code, args.bonus_value, a2, v2, preview_png=fallback_demo_img
+        args.bonus_value, a2, v2, preview_png=fallback_demo_img
     )
 
-    print("[RENDER] 3/7 Rendering Entering Live Demo Broadcast Stinger...")
-    d3 = render_demo_stinger_segment(args.product_name, args.coupon_code, args.bonus_value, a3, v3)
+    print("[TURBO] 3/7 Rendering Entering Live Demo Broadcast Stinger...")
+    d3 = render_demo_stinger_segment(args.product_name, args.bonus_value, a3, v3)
 
-    print("[RENDER] 4/7 Downloading & Processing Live Demo...")
+    print("[TURBO] 4/7 Downloading & Processing Live Demo...")
     raw_demo = WORK_DIR / "raw_demo.mp4"
     download_or_build_demo(args.demo_url, raw_demo, fallback_demo_img)
     d_demo = process_demo_break_fingerprint(raw_demo, demo_overlay, v_demo)
 
-    print("[RENDER] 5/7 Rendering PrimeSite Bonus Vault (6 Real Collections — 120 Bonuses)...")
-    d4a = render_primesite_collections_segment(args.product_name, args.coupon_code, args.bonus_value, a4a, v4a, vault_mode=False)
+    print("[TURBO] 5/7 Rendering PrimeSite Bonus Vault (6 Real Collections — 120 Bonuses)...")
+    d4a = render_primesite_collections_segment(args.product_name, args.bonus_value, a4a, v4a, vault_mode=False)
 
-    print("[RENDER] 6/7 Rendering PrimeSite Top 8 Heavy-Hitter Power Bonuses ($2,826+ Value)...")
-    d4b = render_primesite_top8_segment(args.product_name, args.coupon_code, args.bonus_value, a4b, v4b, vault_mode=False)
+    print("[TURBO] 6/7 Rendering PrimeSite Top 8 Heavy-Hitter Power Bonuses ($2,826+ Value)...")
+    d4b = render_primesite_top8_segment(args.product_name, args.bonus_value, a4b, v4b, vault_mode=False)
 
-    print("[RENDER] 7/7 Rendering Final Verdict & Animated CTA Outro...")
-    d5 = render_outro_motion_segment(args.product_name, args.coupon_code, args.bonus_value, a5, v5, vault_mode=False)
+    print("[TURBO] 7/7 Rendering Final Verdict & Animated CTA Outro...")
+    d5 = render_outro_motion_segment(args.product_name, args.bonus_value, a5, v5, vault_mode=False)
 
-    # 6. Concatenate Main Product Review Video
+    # 6. Instant Zero-Reencode Stream-Copy Concat
     final_mp4 = OUT_DIR / "final_youtube_video.mp4"
-    concat_segments([v1, v2, v3, v_demo, v4a, v4b, v5], final_mp4)
+    concat_segments_turbo([v1, v2, v3, v_demo, v4a, v4b, v5], final_mp4)
 
-    # 7. Also Export Standalone Reusable PrimeSite Bonus Vault Promo Video (for embedding on bonus page!)
+    # 7. Optional Standalone Vault Video (OFF by default in Turbo mode -> saves 35% time!)
     if do_standalone:
-        print("[RENDER] Exporting Standalone PrimeSite Bonus Vault Promo Video...")
+        print("[TURBO] Exporting Standalone PrimeSite Bonus Vault Promo Video...")
         vp1 = WORK_DIR / "vault_promo_1_collections.mp4"
         vp2 = WORK_DIR / "vault_promo_2_top8.mp4"
         vp3 = WORK_DIR / "vault_promo_3_outro.mp4"
-        render_primesite_collections_segment("PrimeSite Vault", args.coupon_code, args.bonus_value, a4a, vp1, vault_mode=True)
-        render_primesite_top8_segment("PrimeSite Vault", args.coupon_code, args.bonus_value, a4b, vp2, vault_mode=True)
-        render_outro_motion_segment("PrimeSite Vault", args.coupon_code, args.bonus_value, av, vp3, vault_mode=True)
-        concat_segments([vp1, vp2, vp3], OUT_DIR / "primesite_bonus_vault_promo.mp4")
+        render_primesite_collections_segment("PrimeSite Vault", args.bonus_value, a4a, vp1, vault_mode=True)
+        render_primesite_top8_segment("PrimeSite Vault", args.bonus_value, a4b, vp2, vault_mode=True)
+        render_outro_motion_segment("PrimeSite Vault", args.bonus_value, av, vp3, vault_mode=True)
+        concat_segments_turbo([vp1, vp2, vp3], OUT_DIR / "primesite_bonus_vault_promo.mp4")
 
-    # 8. Build YouTube SEO Title, Description & Chapters File
+    # 8. Build YouTube SEO Pack (Also keeps coupon hidden to drive clicks to user's website!)
     t0 = 0.0
     t_specs = d1
     t_demo = d1 + d2 + d3
@@ -1797,25 +1840,24 @@ def main():
 YOUTUBE HIGH-CTR TITLES (Playlist Cluster Strategy)
 =========================================================
 Title 1 (Main Review):
-{args.product_name} Review: Full Demo + OTOs 🔴 {args.product_name} Review + Coupon + 120 VIP Bonuses 🔴
+{args.product_name} Review: Full Demo + OTOs 🔴 {args.product_name} Review + Secret Coupon + 120 VIP Bonuses 🔴
 
 Title 2 (OTO & Bundle Angle):
 {args.product_name} OTO Links & Bundle Deal 🔴 {args.product_name} Walkthrough + {args.bonus_value} Bonus Vault
 
 Title 3 (Playlist Name):
-{args.product_name} Review & Demo | {args.product_name} OTOs, Coupon & 120 PrimeSite Bonuses
+{args.product_name} Review & Demo | {args.product_name} OTOs, Secret Coupon & 120 PrimeSite Bonuses
 
 =========================================================
-YOUTUBE DESCRIPTION (Copy & Paste)
+YOUTUBE DESCRIPTION (Copy & Paste — Drives Site Clicks)
 =========================================================
-👉 Grab {args.product_name} + All 120 PrimeSite VIP Bonuses ({args.bonus_value} Value) Here: {args.affiliate_link}
-🔥 Apply Secret Discount Coupon at Checkout: {args.coupon_code}
-🎁 Browse All 120 Bonuses (6 Collections + Top 8 Power Tools): {args.bonus_page_url}
+👉 Grab {args.product_name} + Reveal Secret Coupon + All 120 VIP Bonuses ({args.bonus_value} Value): {args.affiliate_link}
+🎁 Browse All 120 PrimeSite Bonuses (6 Collections + Top 8 Power Tools): {args.bonus_page_url}
 
-In this {args.product_name} review and live walkthrough, we jump straight inside the software so you can see how {args.product_name} helps you {args.main_result}—plus a full breakdown of its top 3 features, OTO upgrades, active coupon code, and our complete 120-resource PrimeSite Bonus Vault.
+In this {args.product_name} review and live walkthrough, we jump straight inside the software so you can see how {args.product_name} helps you {args.main_result}—plus a full breakdown of its top 3 features, OTO upgrades, secret discount deal, and our complete 120-resource PrimeSite Bonus Vault.
 
 ⏱️ Video Chapters:
-{fmt_ts(t0)} {args.product_name} Intro & Active Coupon
+{fmt_ts(t0)} {args.product_name} Intro & Secret Discount Alert
 {fmt_ts(t_specs)} What Is {args.product_name}? (Top 3 Core Features)
 {fmt_ts(t_demo)} {args.product_name} Live Inside Demo Walkthrough
 {fmt_ts(t_bonus)} PrimeSite Bonus Vault — 6 Collections (120 Bonuses)
@@ -1825,7 +1867,7 @@ In this {args.product_name} review and live walkthrough, we jump straight inside
 #{args.product_name.replace(' ', '')} #{args.product_name.replace(' ', '')}Review #{args.product_name.replace(' ', '')}Demo #{args.product_name.replace(' ', '')}OTOs
 """
     (OUT_DIR / "youtube_seo_pack.txt").write_text(seo_text, encoding="utf-8")
-    print("SUCCESS! Faceless v6 Review Video + Standalone PrimeSite Vault Video + Thumbnail + SEO Pack generated in:", OUT_DIR)
+    print("SUCCESS! v6.1 TURBO Faceless Video (No-Coupon-Leak CRO), Thumbnail & SEO Pack generated in:", OUT_DIR)
 
 
 if __name__ == "__main__":
